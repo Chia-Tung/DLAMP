@@ -1,0 +1,10 @@
+pip-upgrader
+ipykernel
+importlib-metadata
+requests
+termcolor
+wandb
+mlflow
+cftime
+opencv-python
+geopandas
