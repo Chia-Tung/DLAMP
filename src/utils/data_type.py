@@ -1,7 +1,5 @@
 from enum import StrEnum
 
-from src.const import VAR_SUFFIX
-
 
 class DataType(StrEnum):
     GeoHeight = "000"
@@ -12,22 +10,6 @@ class DataType(StrEnum):
     Lat = "LAT"
     Lon = "LON"
     Radar = "MOS"
-
-    @classmethod
-    def gen_dir_name(cls, var: str, lv: str):
-        """
-        A function to generate a directory name based on the given variables and level.
-
-        Parameters:
-            var (str): The variable to be included in the directory name.
-            lv (str): The level to be included in the directory name.
-
-        Returns:
-            str: The generated directory name based on the input variables and level.
-        """
-        if var in ["Lat", "Lon", "Radar"]:
-            lv = "NoRule"
-        return f"{Level[lv]}{cls[var]}{VAR_SUFFIX}"
 
 
 class Level(StrEnum):

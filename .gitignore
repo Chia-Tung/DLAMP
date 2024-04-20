@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Hydra
+outputs/**
+
 # Django stuff:
 *.log
 *.docx

@@ -3,7 +3,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.const import FIGURE_PATH, WSP_COLOR, WSP_LV
+from src.const import WSP_COLOR, WSP_LV, FIGURE_PATH
 from src.utils import gen_data
 from visual.tw_background import TwBackground
 

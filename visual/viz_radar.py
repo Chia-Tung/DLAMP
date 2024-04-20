@@ -6,7 +6,6 @@ from matplotlib import cm
 
 from src.const import DBZ_COLOR, DBZ_LV, DBZ_NORM, FIGURE_PATH
 from src.utils import gen_data
-
 from visual.tw_background import TwBackground
 
 
@@ -50,6 +49,7 @@ if __name__ == "__main__":
     viz = VizRadar()
     fig, ax = viz.plot(data_lon, data_lat, data_radar)
     fig.savefig(
-        f"{FIGURE_PATH}/{target_time.strftime('%Y%m%d_%H%M')}_mos.png", transparent=False
+        f"{FIGURE_PATH}/{target_time.strftime('%Y%m%d_%H%M')}_mos.png",
+        transparent=False,
     )
     plt.close()

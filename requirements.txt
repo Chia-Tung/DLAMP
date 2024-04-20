@@ -8,3 +8,5 @@ mlflow
 cftime
 opencv-python
 geopandas
+pydantic
+lightning

@@ -6,16 +6,12 @@ import numpy as np
 
 from src.const import DATA_PATH
 
-from . import DataType
+from . import DataCompose
 
 
-def gen_data(target_time: datetime, data_config: dict):
-    assert all(
-        x in data_config.keys() for x in ["var", "lv"]
-    ), "data_config must contain 'var' and 'lv'"
-
-    file_dir = gen_path(target_time, data_config)
-    return read_cwa_npfile(file_dir, data_config["var"] == "Radar")
+def gen_data(target_time: datetime, data_compose: DataCompose):
+    file_dir = gen_path(target_time, data_compose)
+    return read_cwa_npfile(file_dir, data_compose.is_radar)
 
 
 def read_cwa_npfile(file_path: Path, is_radar: bool = False) -> np.ndarray:
@@ -39,15 +35,15 @@ def read_cwa_npfile(file_path: Path, is_radar: bool = False) -> np.ndarray:
 
 def gen_path_hook(func) -> Path:
     @wraps(func)
-    def wrap(target_time: datetime, data_config: None | dict[str, str] = None):
+    def wrap(target_time: datetime, data_compose: None | DataCompose = None):
         """
         Example:
             target_time = datetime(2021, 6, 4, 5)
             data_config = {"var": "Radar", "lv": "NoRule"}
         """
-        if data_config is None:
+        if data_compose is None:
             return func(target_time)
-        return func(target_time) / DataType.gen_dir_name(**data_config)
+        return func(target_time) / data_compose.sub_dir_name
 
     return wrap
 

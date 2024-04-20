@@ -1,0 +1,17 @@
+# For more default settings and their description, please refer to:
+# `../site-package/hydra/conf/__init__.py`
+hydra:
+  run:  
+    dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S} # where to save the logs
+  job:
+    chdir: False # whether to move to log folder
+  output_subdir: null # .hydra log dir name
+  job_logging:
+    root:
+      level: DEBUG # whether set log level to DEBUG
+  # verbose: [src.managers.data_manager] 
+
+defaults:
+  - _self_
+  - data: dlamp_train
+  - override hydra/job_logging: default # default/disabled/custom
