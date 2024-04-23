@@ -2,6 +2,9 @@ start_time: "2020_06_01_00_00"
 end_time: "2020_06_30_00_00"
 time_interval: 
   hours: 1
+split_config:
+  ratios: [6, 2, 2]
+  order_by_time: True
 train_data:
   GeoHeight:
     - Hpa925

@@ -10,6 +10,17 @@ from . import DataCompose
 
 
 def gen_data(target_time: datetime, data_compose: DataCompose):
+    """
+    Generate data for a given target time and data composition.
+
+    Args:
+        target_time (datetime): The target time for which the data is generated.
+        data_compose (DataCompose): The data composition object.
+
+    Returns:
+        The generated data.
+
+    """
     file_dir = gen_path(target_time, data_compose)
     return read_cwa_npfile(file_dir, data_compose.is_radar)
 
@@ -34,13 +45,19 @@ def read_cwa_npfile(file_path: Path, is_radar: bool = False) -> np.ndarray:
 
 
 def gen_path_hook(func) -> Path:
+    """
+    A decorator function that wraps the given `func` and returns a modified function
+    providing the full sub-directory path based on the given data composition.
+
+    Parameters:
+        func (Callable): The function to be wrapped.
+
+    Returns:
+        Callable: The modified function.
+    """
+
     @wraps(func)
     def wrap(target_time: datetime, data_compose: None | DataCompose = None):
-        """
-        Example:
-            target_time = datetime(2021, 6, 4, 5)
-            data_config = {"var": "Radar", "lv": "NoRule"}
-        """
         if data_compose is None:
             return func(target_time)
         return func(target_time) / data_compose.sub_dir_name
@@ -50,6 +67,15 @@ def gen_path_hook(func) -> Path:
 
 @gen_path_hook
 def gen_path(target_time: datetime) -> Path:
+    """
+    A function that generates a path based on the given target time.
+
+    Parameters:
+        target_time (datetime): The target time for generating the path.
+
+    Returns:
+        Path: The generated path.
+    """
     return (
         Path(DATA_PATH)
         / f"rwf_{target_time.strftime('%Y%m')}"

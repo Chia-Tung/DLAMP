@@ -10,9 +10,10 @@ from src.utils import DataCompose
 class DataManager(L.LightningDataModule):
     def __init__(self, data_list: list[DataCompose], **kwargs):
         super().__init__()
-        self.save_hyperparameters(ignore=["data_list"])
+        self.save_hyperparameters(ignore=["data_list", "train_data"])
 
         # internal property
+        self.data_list = data_list
         self._train_dataset = None
         self._valid_dataset = None
         self._test_dataset = None
@@ -22,15 +23,36 @@ class DataManager(L.LightningDataModule):
         self.dtm = DatetimeManager(
             kwargs["start_time"], kwargs["end_time"], kwargs["time_interval"]
         )
-        self.setup()
 
-    def setup(self):
+    def setup(self, stage: str):
         """
-        `setup` is called from every process across all the nodes.
+        `setup` is called from every process across all the nodes and GPUs.
         Setting state here is recommended.
         """
-        self.log.debug(len(self.dtm.build_path_list()))
-        pass
+        match stage:
+            case "fit":
+                # remove target time
+                self.dtm.build_path_list().sanity_check(
+                    self.data_list
+                ).remove_evaluation_cases().random_split(**self.hparams.split_config)
+                self.log.debug(len(self.dtm.train_time))
+                self.log.debug(len(self.dtm.valid_time))
+                self.log.debug(len(self.dtm.test_time))
+            case _:
+                self.log.error(f"Invalid stage: {stage}")
+                raise ValueError(f"Invalid stage: {stage}")
+
+        # self.log.info(
+        #     f"[{self.__class__.__name__}] "
+        #     f"Total data collected: {len(train_time)+len(valid_time)+len(test_time)}, "
+        #     f"Sampling Rate: {self._sampling_rate}\n"
+        #     f"[{self.__class__.__name__}] "
+        #     f"Training Data Size: {len(train_time) // self._sampling_rate}, "
+        #     f"Validating Data Size: {len(valid_time) // self._sampling_rate}, "
+        #     f"Testing Data Size: {len(test_time) // self._sampling_rate} \n"
+        #     f"[{self.__class__.__name__}] "
+        #     f"Image Shape: {self._target_shape}, Batch Size: {self._batch_size}"
+        # )
 
     # def _setup(self):
     #     # data loaders instantiate
@@ -51,18 +73,6 @@ class DataManager(L.LightningDataModule):
     #         self._datetime_maneger.train_time,
     #         self._datetime_maneger.valid_time,
     #         self._datetime_maneger.test_time,
-    #     )
-
-    #     print(
-    #         f"[{self.__class__.__name__}] "
-    #         f"Total data collected: {len(train_time)+len(valid_time)+len(test_time)}, "
-    #         f"Sampling Rate: {self._sampling_rate}\n"
-    #         f"[{self.__class__.__name__}] "
-    #         f"Training Data Size: {len(train_time) // self._sampling_rate}, "
-    #         f"Validating Data Size: {len(valid_time) // self._sampling_rate}, "
-    #         f"Testing Data Size: {len(test_time) // self._sampling_rate} \n"
-    #         f"[{self.__class__.__name__}] "
-    #         f"Image Shape: {self._target_shape}, Batch Size: {self._batch_size}"
     #     )
 
     #     self._train_dataset = AdoptedDataset(

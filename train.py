@@ -26,6 +26,7 @@ def main(cfg: DictConfig) -> None:
         for lv in value:
             data_list.append(DataCompose(DataType[var], Level[lv]))
     dm = DataManager(data_list, **cfg.data)
+    dm.setup("fit")
 
 
 if __name__ == "__main__":

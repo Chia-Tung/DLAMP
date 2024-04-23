@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import matplotlib as mpl
 import numpy as np
 
@@ -166,3 +168,6 @@ WSP_COLOR = [
     "#b22846",
     "#9a1941",
 ]
+
+# Evaluation cases
+EVAL_CASES = (datetime(2021, 6, 4), datetime(2022, 6, 23), datetime(2022, 7, 19))
