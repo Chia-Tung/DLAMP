@@ -8,7 +8,7 @@ class TimeUtil:
         month: int,
         day: int,
         hour: int | None = None,
-        interval: dict[str, int] = {"minutes": 1},
+        interval: dict[str, int] | timedelta = {"minutes": 1},
     ) -> list[datetime]:
         """
         Generate a list of datetime objects representing the entire period for a given date and time interval.
@@ -18,52 +18,45 @@ class TimeUtil:
             month (int): The month of the target date.
             day (int): The day of the target date.
             hour (int | None, optional): The hour of the target date. Defaults to None.
-            interval (dict[str, int], optional): The time interval used to iterate through the target dates.
+            interval (dict[str, int] | timedelta, optional): The time interval used to iterate through the target dates.
                 The keys of the dictionary must be one of the following: "days", "seconds", "microseconds",
                 "milliseconds", "minutes", "hours", "weeks". Defaults to {"minutes": 1}.
 
         Returns:
             list[datetime]: A list of datetime objects representing the entire period for the given date and time interval.
         """
-        time_interval = timedelta(**interval)
+        if isinstance(interval, dict):
+            interval = timedelta(**interval)
         time_list = []
         if hour:
             dt = datetime(year, month, day, hour)
             while dt.hour == hour:
                 time_list.append(dt)
-                dt += time_interval
+                dt += interval
         else:
             dt = datetime(year, month, day)
             while dt.day == day:
                 time_list.append(dt)
-                dt += time_interval
+                dt += interval
         return time_list
 
     @staticmethod
     def three_days(
-        year: int, month: int, day: int, interval: dict[str, int]
+        year: int, month: int, day: int, interval: dict[str, int] | timedelta
     ) -> list[datetime]:
         """
-        Return a list of datetime objects representing three days with the specified time interval.
+        Generate a list of datetime objects representing the three days before and after a given date.
 
-        Parameters
-        ----------
-        year : int
-            The year of the target date.
-        month : int
-            The month of the target date.
-        day : int
-            The day of the target date.
-        interval : dict[str, int]
-            The time interval used to iterate through the target days.
-            The keys of the dictionary must be one of the following:
-            "days", "seconds", "microseconds", "milliseconds",
-            "minutes", "hours", "weeks".
+        Parameters:
+            year (int): The year of the target date.
+            month (int): The month of the target date.
+            day (int): The day of the target date.
+            interval (dict[str, int] | timedelta): The time interval used to iterate through the target dates.
+                The keys of the dictionary must be one of the following: "days", "seconds", "microseconds",
+                "milliseconds", "minutes", "hours", "weeks". Defaults to {"minutes": 1}.
 
-        Returns
-        -------
-        list[datetime]
-            A list of datetime objects representing the three days with the specified time interval.
+        Returns:
+            list[datetime]: A list of datetime objects representing the three days before and after the given date.
         """
         target_t = [
             datetime(year, month, day) + i * timedelta(days=1) for i in range(-1, 2)

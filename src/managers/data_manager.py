@@ -32,12 +32,9 @@ class DataManager(L.LightningDataModule):
         match stage:
             case "fit":
                 # remove target time
-                self.dtm.build_path_list().sanity_check(
-                    self.data_list
-                ).remove_evaluation_cases().random_split(**self.hparams.split_config)
-                self.log.debug(len(self.dtm.train_time))
-                self.log.debug(len(self.dtm.valid_time))
-                self.log.debug(len(self.dtm.test_time))
+                self.dtm.build_path_list().sanity_check(self.data_list).random_split(
+                    **self.hparams.split_config
+                ).build_blacklist().swap_eval_cases_from_train_valid()
             case _:
                 self.log.error(f"Invalid stage: {stage}")
                 raise ValueError(f"Invalid stage: {stage}")
