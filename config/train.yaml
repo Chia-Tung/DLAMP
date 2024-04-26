@@ -8,10 +8,16 @@ hydra:
   output_subdir: null # .hydra log dir name
   job_logging:
     root:
-      level: DEBUG # whether set log level to DEBUG
+      level: DEBUG # 1st filter
+    handlers:
+      console:
+        level: INFO # 2nd filter
+      file:
+        level: DEBUG # 2nd filter
   # verbose: [src.managers.data_manager] 
 
 defaults:
   - _self_
   - data: dlamp_train
+  - hparams: dlamp_train
   - override hydra/job_logging: default # default/disabled/custom

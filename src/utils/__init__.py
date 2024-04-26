@@ -2,6 +2,7 @@
 __all__ = ["DataCompose", "DataType", "Level", "gen_path", "gen_data"]
 
 # define package members, be careful of circular import
+from src.utils.custom_dataset import *
 from src.utils.data_compose import *
 from src.utils.data_type import *
 from src.utils.file_util import *

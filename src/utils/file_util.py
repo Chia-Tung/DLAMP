@@ -5,8 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from src.const import DATA_PATH
-
-from . import DataCompose
+from src.utils.data_compose import DataCompose
 
 
 def gen_data(target_time: datetime, data_compose: DataCompose):

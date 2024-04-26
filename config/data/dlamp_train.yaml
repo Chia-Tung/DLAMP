@@ -1,10 +1,9 @@
-start_time: "2020_06_01_00_00"
-end_time: "2020_06_30_00_00"
+start_time: "2021-06-01 00:00"
+end_time: "2021-08-30 00:00"
+format: "%Y-%m-%d %H:%M"
 time_interval: 
   hours: 1
-split_config:
-  ratios: [6, 2, 2]
-  order_by_time: True
+data_shape: [450, 450]
 train_data:
   GeoHeight:
     - Hpa925
@@ -16,19 +15,16 @@ train_data:
     - Hpa850
     - Hpa700
     - Hpa500
-    - Meter2
   U:
     - Hpa925
     - Hpa850
     - Hpa700
     - Hpa500
-    - Meter10
   V:
     - Hpa925
     - Hpa850
     - Hpa700
     - Hpa500
-    - Meter10
   Radar:
     - NoRule
 

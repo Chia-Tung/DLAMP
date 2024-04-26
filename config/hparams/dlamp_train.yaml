@@ -1,0 +1,9 @@
+input_shape: [448, 448]
+input_len: 1
+output_len: 1
+split_config:
+  ratios: [6, 2, 2]
+  order_by_time: True
+sampling_rate: 3
+batch_size: 16
+workers: 1

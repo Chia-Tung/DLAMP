@@ -1,10 +1,12 @@
 import logging
 
 import lightning as L
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler
 
 from src.managers.datetime_manager import DatetimeManager
-from src.utils import DataCompose
+from src.utils import CustomDataset, DataCompose
+
+log = logging.getLogger(__name__)
 
 
 class DataManager(L.LightningDataModule):
@@ -17,122 +19,141 @@ class DataManager(L.LightningDataModule):
         self._train_dataset = None
         self._valid_dataset = None
         self._test_dataset = None
+        self._train_sampler = None
 
-        # set up
-        self.log = logging.getLogger(__name__)
+        # assistants
         self.dtm = DatetimeManager(
-            kwargs["start_time"], kwargs["end_time"], kwargs["time_interval"]
+            kwargs["start_time"],
+            kwargs["end_time"],
+            kwargs["format"],
+            kwargs["time_interval"],
         )
+        self._already_called: dict[str, bool] = {}
+        for stage in ("fit", "validate", "test", "predict"):
+            self._already_called[stage] = False
 
     def setup(self, stage: str):
         """
-        `setup` is called from every process across all the nodes and GPUs.
-        Setting state here is recommended.
+        Sets up the data for the specified stage.
+
+        This function is called from every process across all the nodes and GPUs.
+
+        Parameters:
+            stage (str): The stage for which the data needs to be set up.
+                Possible values are "fit", "validate", "test", or "predict".
+
+        Returns:
+            None
+
+        Raises:
+            NotImplementedError: If the stage is "predict".
+            ValueError: If the stage is invalid.
         """
+        if stage and self._already_called[stage]:
+            log.warning(f'Stage "{stage}" has already been called. Skipping...')
+            return
+
+        if not self.dtm.is_done:
+            self.dtm.build_path_list().sanity_check(self.data_list).random_split(
+                **self.hparams.split_config
+            ).build_blacklist().swap_eval_cases_from_train_valid()
+            self.dtm.is_done = True
+
         match stage:
             case "fit":
-                # remove target time
-                self.dtm.build_path_list().sanity_check(self.data_list).random_split(
-                    **self.hparams.split_config
-                ).build_blacklist().swap_eval_cases_from_train_valid()
+                self._train_dataset = self._setup("train")
+                self._train_sampler = RandomSampler(
+                    self._train_dataset,
+                    num_samples=len(self._train_dataset) // self.hparams.sampling_rate,
+                    replacement=False,
+                )
+                self._valid_dataset = self._setup("valid")
+            case "validate":
+                self._valid_dataset = self._setup("valid")
+            case "test":
+                self._test_dataset = self._setup("test")
+            case "predict":
+                raise NotImplementedError()
             case _:
-                self.log.error(f"Invalid stage: {stage}")
+                log.error(f"Invalid stage: {stage}")
                 raise ValueError(f"Invalid stage: {stage}")
 
-        # self.log.info(
-        #     f"[{self.__class__.__name__}] "
-        #     f"Total data collected: {len(train_time)+len(valid_time)+len(test_time)}, "
-        #     f"Sampling Rate: {self._sampling_rate}\n"
-        #     f"[{self.__class__.__name__}] "
-        #     f"Training Data Size: {len(train_time) // self._sampling_rate}, "
-        #     f"Validating Data Size: {len(valid_time) // self._sampling_rate}, "
-        #     f"Testing Data Size: {len(test_time) // self._sampling_rate} \n"
-        #     f"[{self.__class__.__name__}] "
-        #     f"Image Shape: {self._target_shape}, Batch Size: {self._batch_size}"
-        # )
+        self._already_called[stage] = True
+        self.info_log(f'Stage "{stage}" setup done')
+        self.info_log(
+            f"Total data collected: {len(self.dtm.time_list)}, Sampling Rate: {self.hparams.sampling_rate}"
+        )
+        self.info_log(
+            f"Training Data Size: {len(self.dtm.train_time) // self.hparams.sampling_rate}, "
+            f"Validating Data Size: {len(self.dtm.valid_time) // self.hparams.sampling_rate}, "
+            f"Testing Data Size: {len(self.dtm.test_time) // self.hparams.sampling_rate}"
+        )
+        self.info_log(
+            f"Image Shape: {self.hparams.data_shape}, Batch Size: {self.hparams.batch_size}"
+        )
 
-    # def _setup(self):
-    #     # data loaders instantiate
-    #     self._all_loaders = LoaderMapping.get_all_loaders(self._data_meta_info)
+    def _setup(self, stage: str):
+        """
+        Sets up the `torch.utils.data.Dataset` for the specified stage.
 
-    #     # set initial time list
-    #     for loader in self._all_loaders:
-    #         self._datetime_maneger.import_time_from_loader(
-    #             loader, self._ilen, self._olen, self._oint
-    #         )
+        Parameters:
+            stage (str): The stage for which the data needs to be set up.
 
-    #     # remove illegal datetime
-    #     self._datetime_maneger.remove_illegal_time(self._start_date, self._end_date)
+        Returns:
+            CustomDataset: The subclass of `torch.utils.data.Dataset`.
+        """
+        ordered_time = getattr(self.dtm, f"ordered_{stage}_time")
 
-    #     # random split
-    #     self._datetime_maneger.random_split(self._order_by_time, self._ratios)
-    #     train_time, valid_time, test_time = (
-    #         self._datetime_maneger.train_time,
-    #         self._datetime_maneger.valid_time,
-    #         self._datetime_maneger.test_time,
-    #     )
+        return CustomDataset(
+            self.hparams.input_len,
+            self.hparams.output_len,
+            getattr(self.hparams, "input_itv", {"hours": 1}),
+            getattr(self.hparams, "output_itv", {"hours": 1}),
+            self.hparams.data_shape,
+            self.hparams.sampling_rate,
+            ordered_time,
+            self.data_list,
+            is_train=stage == "train",
+        )
 
-    #     self._train_dataset = AdoptedDataset(
-    #         self._ilen,
-    #         self._olen,
-    #         self._oint,
-    #         self._target_shape,
-    #         self._target_lat,
-    #         self._target_lon,
-    #         initial_time_list=train_time,
-    #         data_meta_info=self._data_meta_info,
-    #         sampling_rate=self._sampling_rate,
-    #         is_train=True,
-    #     )
+    def train_dataloader(self):
+        """
+        sampler and shuffle can not exist at the same time
+        """
+        return DataLoader(
+            dataset=self._train_dataset,
+            sampler=self._train_sampler,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.workers,
+            drop_last=True,
+        )
 
-    #     self._valid_dataset = AdoptedDataset(
-    #         self._ilen,
-    #         self._olen,
-    #         self._oint,
-    #         self._target_shape,
-    #         self._target_lat,
-    #         self._target_lon,
-    #         initial_time_list=valid_time,
-    #         data_meta_info=self._data_meta_info,
-    #         sampling_rate=self._sampling_rate,
-    #         is_valid=True,
-    #     )
+    def val_dataloader(self):
+        """
+        sampler and shuffle can not exist at the same time
+        """
+        return DataLoader(
+            dataset=self._valid_dataset,
+            shuffle=False,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.workers,
+            drop_last=False,
+        )
 
-    #     self._evalu_dataset = AdoptedDataset(
-    #         self._ilen,
-    #         self._olen,
-    #         self._oint,
-    #         self._target_shape,
-    #         self._target_lat,
-    #         self._target_lon,
-    #         initial_time_list=test_time,
-    #         data_meta_info=self._data_meta_info,
-    #         sampling_rate=self._sampling_rate,
-    #         is_test=True,
-    #     )
+    def test_dataloader(self):
+        """
+        sampler and shuffle can not exist at the same time
+        """
+        return DataLoader(
+            dataset=self._test_dataset,
+            shuffle=False,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.workers,
+            drop_last=False,
+        )
 
-    # def train_dataloader(self):
-    #     return DataLoader(
-    #         self._train_dataset,
-    #         batch_size=self._batch_size,
-    #         num_workers=self._workers,
-    #         shuffle=True,
-    #     )
-
-    # def val_dataloader(self):
-    #     return DataLoader(
-    #         self._valid_dataset,
-    #         batch_size=self._batch_size,
-    #         num_workers=self._workers,
-    #         shuffle=False,
-    #     )
-
-    # def get_data_info(self):
-    #     inp_data_map = self._train_dataset[0][0]
-    #     return {
-    #         "batch_size": self._batch_size,
-    #         "shape": self._target_shape,
-    #         "channel": {k: v.shape[1] for k, v in inp_data_map.items()},
-    #         "ilen": self._ilen,
-    #         "olen": self._olen,
-    #     }
+    def info_log(self, content: str):
+        """
+        Logs the given content with the class name prefixed.
+        """
+        log.info(f"[{self.__class__.__name__}] {content}")
