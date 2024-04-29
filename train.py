@@ -25,7 +25,11 @@ def main(cfg: DictConfig) -> None:
     for var, value in cfg.data.train_data.items():
         for lv in value:
             data_list.append(DataCompose(DataType[var], Level[lv]))
-    dm = DataManager(data_list, **cfg.data)
+    dm = DataManager(data_list, **cfg.data, **cfg.hparams)
+    dm.setup("fit")
+
+    # model
+    # TODO: standarization of data, center cropping
 
 
 if __name__ == "__main__":
