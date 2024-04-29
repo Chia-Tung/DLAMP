@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange, repeat
 
-from .earth_attention_3d import EarthAttention3D
+from .earth_3d_specifics import EarthAttention3D
 
 __all__ = ["PanguModel"]
 

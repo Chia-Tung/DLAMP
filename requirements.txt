@@ -1,5 +1,4 @@
-pip-upgrader
-ipykernel
+# libraries for Nvidia-modulus
 importlib-metadata
 requests
 termcolor
@@ -7,6 +6,8 @@ wandb
 mlflow
 cftime
 opencv-python
+# other
+ipykernel
 geopandas
 pydantic
 lightning
