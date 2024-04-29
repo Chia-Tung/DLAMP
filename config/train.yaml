@@ -20,4 +20,5 @@ defaults:
   - _self_
   - data: dlamp_train
   - hparams: dlamp_train
+  - model: dlamp_train
   - override hydra/job_logging: default # default/disabled/custom

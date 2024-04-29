@@ -1,0 +1,7 @@
+model_name: Pangu
+# earth attn 3d
+input_shape: [6, 56, 56]
+heads: [6, 12]
+dim: 192
+dropout_rate: 0.15
+window_size: [2, 4, 4]

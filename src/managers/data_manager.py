@@ -3,8 +3,8 @@ import logging
 import lightning as L
 from torch.utils.data import DataLoader, RandomSampler
 
-from src.managers.datetime_manager import DatetimeManager
-from src.utils import CustomDataset, DataCompose
+from ..utils import CustomDataset, DataCompose
+from .datetime_manager import DatetimeManager
 
 log = logging.getLogger(__name__)
 

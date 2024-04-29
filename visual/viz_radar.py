@@ -6,7 +6,8 @@ from matplotlib import cm
 
 from src.const import DBZ_COLOR, DBZ_LV, DBZ_NORM, FIGURE_PATH
 from src.utils import gen_data
-from visual.tw_background import TwBackground
+
+from .tw_background import TwBackground
 
 
 class VizRadar(TwBackground):

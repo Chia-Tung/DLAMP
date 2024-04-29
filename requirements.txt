@@ -10,3 +10,4 @@ opencv-python
 geopandas
 pydantic
 lightning
+einops

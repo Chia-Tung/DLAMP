@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import numpy as np
 from torch.utils.data import Dataset
 
-from src.utils.data_compose import DataCompose
-from src.utils.file_util import gen_path, read_cwa_npfile
+from .data_compose import DataCompose
+from .file_util import gen_path, read_cwa_npfile
 
 
 class CustomDataset(Dataset):
