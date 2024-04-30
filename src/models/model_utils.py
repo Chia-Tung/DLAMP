@@ -11,7 +11,9 @@ def get_builder(model_name: str):
 
 
 def window_partition_3d(
-    input_feature: torch.Tensor, window_size: tuple[int, int, int]
+    input_feature: torch.Tensor,
+    window_size: tuple[int, int, int],
+    combine_img_dim: bool = False,
 ) -> torch.Tensor:
     """
     Partitions the given input into windows.
@@ -19,16 +21,18 @@ def window_partition_3d(
     Args:
         input_feature (tensor): (B, Z, H, W, C)
         window_size (tuple[int, int, int]): attention window's shape (wZ, wH, wW)
+        combine_img_dim (bool): whether to combine the image dimensions into one channel
     Returns:
-        torch.Tensor: Tensor of shape (B * num_windows, wZ, wH, wW, C)
+        torch.Tensor: Tensor of shape (B * num_windows, wZ, wH, wW, C) or (B * num_windows, wZ*wH*wW, C)
+            if `combine_img_dim` is True
     """
-    wZ, wH, wW = window_size
+    arg = "(b nZ nH nW) (wZ wH wW) c" if combine_img_dim else "(b nZ nH nW) wZ wH wW c"
     windows = rearrange(
         input_feature,
-        "b (nZ wZ) (nH wH) (nW wW) c -> (b nZ nH nW) wZ wH wW c",
-        wZ=wZ,
-        wH=wH,
-        wW=wW,
+        "b (nZ wZ) (nH wH) (nW wW) c -> " + arg,
+        wZ=window_size[0],
+        wH=window_size[1],
+        wW=window_size[2],
     )
     return windows
 
@@ -37,26 +41,32 @@ def window_reverse_3d(
     windows: torch.Tensor,
     window_size: tuple[int, int, int],
     orig_img_size: tuple[int, int, int],
+    from_combine_dim: bool = False,
 ) -> torch.Tensor:
     """
     Merges windows to produce higher resolution features.
 
     Args:
-        windows (torch.Tensor): Tensor of shape (B * num_windows, wZ, wH, wW, C)
+        windows (torch.Tensor): Tensor of shape (B * num_windows, wZ, wH, wW, C) or (B * num_windows, wZ*wH*wW, C)
+            if `from_combined_img_dim` is True
         window_size (tuple[int, int, int]): window size (wZ, wH, wW)
         orig_img_size (tuple[int, int, int]): original image size (Z, H, W)
+        from_combine_dim (bool): whether the input tensor is the same shape as `combine_img_dim=True` from
+            `window_partition_3d`
     Returns:
         torch.Tensor: Tensor of shape (B, Z, H, W, C)
     """
-    Z, H, W = orig_img_size
-    wZ, wH, wW = window_size
+    arg = "(b nZ nH nW) (wZ wH wW) c" if from_combine_dim else "(b nZ nH nW) wZ wH wW c"
     nZ, nH, nW = map(lambda x, y: x // y, orig_img_size, window_size)
     orig_img = rearrange(
         windows,
-        "(b nZ nH nW) wZ wH wW c -> b (nZ wZ) (nH wH) (nW wW) c",
+        arg + " -> b (nZ wZ) (nH wH) (nW wW) c",
         nZ=nZ,
         nH=nH,
         nW=nW,
+        wZ=window_size[0],
+        wH=window_size[1],
+        wW=window_size[2],
     )
     return orig_img
 
@@ -71,11 +81,11 @@ def gen_3d_attn_mask(
     see https://github.com/microsoft/Swin-Transformer for the official implementation of 2D window attention.
 
     Args:
-        img_shape (tuple[int, int, int]): The shape of the image tensor.
-        window_size (tuple[int, int, int]): The size of the sliding window.
+        img_shape (tuple[int, int, int]): The shape of the image tensor (Z, H, W).
+        window_size (tuple[int, int, int]): The size of the sliding window (wZ, wH, wW).
 
     Returns:
-        torch.Tensor: The 3D attention mask tensor.
+        torch.Tensor: The 3D attention mask tensor with shape (num_windows, wZ*wH*wW, wZ*wH*wW)
     """
     shift_size = tuple(i // 2 for i in window_size)
     img_mask = torch.zeros(1, img_shape[0], img_shape[1], img_shape[2], 1)

@@ -38,8 +38,8 @@ class EarthAttention3D(nn.Module):
         see https://github.com/microsoft/Swin-Transformer for the official implementation of 2D window attention.
 
         Args:
-            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (Z, H, W). The input
-                tensor represents a 3D image after patch embedding.
+            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (img_Z, img_H, img_W).
+                The input tensor represents a 3D image after patch embedding.
             dim (int): The dimension of the input tensor.
             heads (int): The number of attention heads.
             dropout_rate (float): The dropout rate.
@@ -122,7 +122,7 @@ class EarthAttention3D(nn.Module):
             torch.Tensor: Tensor of shape (B*num_windows, win_Z*win_H*win_W, dim).
                 where num_windows = num_Z*num_H*num_W.
         """
-        original_shape = x.shape
+        orig_shape = x.shape
         x = self.linear1(x)  # (B*num_windows, win_Z*win_H*win_W, dim*3)
         query, key, value = rearrange(
             x, "b zhw (qkv n_h d) -> qkv b n_h zhw d", qkv=3, n_h=self.num_head
@@ -144,7 +144,7 @@ class EarthAttention3D(nn.Module):
         EarthSpecificBias = repeat(
             EarthSpecificBias,
             "t_w n_h zhw1 zhw2 ->  (f t_w) n_h zhw1 zhw2",
-            f=original_shape[0] // self.type_of_windows,
+            f=orig_shape[0] // self.type_of_windows,
         )
 
         attention += EarthSpecificBias
@@ -153,13 +153,13 @@ class EarthAttention3D(nn.Module):
             mask = repeat(
                 mask,
                 "n_w zhw1 zhw2 -> (batch n_w) zhw1 zhw2",
-                batch=original_shape[0] // (self.num_Z * self.num_H * self.num_W),
+                batch=orig_shape[0] // (self.type_of_windows * self.num_W),
             )
-            attention += mask[None, ::, None]
+            attention += mask[::, None]
 
         attention = self.softmax(attention)
         attention = self.dropout(attention)
-        x = (attention @ value).transpose(1, 2).reshape(original_shape)
+        x = (attention @ value).transpose(1, 2).reshape(orig_shape)
         x = self.linear2(x)
         x = self.dropout(x)
         return x
@@ -182,14 +182,14 @@ class EarthSpecificBlock(nn.Module):
         The major difference is that we expand the dimensions to 3 and replace the relative position bias with Earth-Specific bias.
 
         Args:
-            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (Z, H, W). The input
+            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (img_Z, img_H, img_W). The input
                 tensor represents a 3D image after patch embedding.
             dim (int): The dimension of the input tensor.
             heads (int): The number of attention heads.
             drop_path_ratio (float): The ratio of the drop path.
             dropout_rate (float): The dropout rate.
             window_size (tuple[int]): The size of the window whose dimensions are (win_Z, win_H, win_W).
-
+            is_rolling (bool): Whether to use shifted window attention.
         Returns:
             None
         """
@@ -206,115 +206,46 @@ class EarthSpecificBlock(nn.Module):
             window_size=window_size,
         )
 
-        self.img_Z, self.img_H, self.img_W = input_shape
-        self.win_Z, self.win_H, self.win_W = window_size
+        self.is_rolling = is_rolling
+        self.input_shape = input_shape
+        self.window_size = window_size
         self.pad = pad_3d(input_shape, window_size)
         self.crop = crop_pad_3d(input_shape, window_size)
-        self.mask = gen_3d_attn_mask(input_shape, window_size) if is_rolling else None
-        self.register_buffer("attn_mask", self.mask)
+        if is_rolling:
+            mask = gen_3d_attn_mask(input_shape, window_size)
+            self.register_buffer("attn_mask", mask)
 
-    def forward(self, x, Z, H, W, roll):
-        # Save the shortcut for skip-connection
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x (torch.Tensor): Tensor of shape (B, img_Z*img_H*img_W, dim).
+        Returns:
+            torch.Tensor: Tensor of shape (B, img_Z*img_H*img_W, dim).
+        """
         shortcut = x
+        img_Z, img_H, img_W = self.input_shape
+        x = rearrange(x, "b (z h w) c -> b z h w c", z=img_Z, h=img_H, w=img_W)
 
-        # Reshape input to three dimensions to calculate window attention
-        reshape(x, target_shape=(x.shape[0], Z, H, W, x.shape[2]))
+        # backward shift
+        if self.is_rolling:
+            x = x.roll(shifts=[-i // 2 for i in self.window_size], dims=(1, 2, 3))
 
-        # Zero-pad input if needed
-        x = pad3D(x)
-
-        # Store the shape of the input for restoration
-        ori_shape = x.shape
-
-        if roll:
-            # Roll x for half of the window for 3 dimensions
-            x = roll3D(
-                x,
-                shift=[
-                    self.window_size[0] // 2,
-                    self.window_size[1] // 2,
-                    self.window_size[2] // 2,
-                ],
-            )
-            # Generate mask of attention masks
-            # If two pixels are not adjacent, then mask the attention between them
-            # Your can set the matrix element to -1000 when it is not adjacent, then add it to the attention
-            mask = gen_mask(x)
-        else:
-            # e.g., zero matrix when you add mask to attention
-            mask = no_mask
-
-        # Reorganize data to calculate window attention
-        x_window = reshape(
-            x,
-            target_shape=(
-                x.shape[0],
-                Z // window_size[0],
-                window_size[0],
-                H // window_size[1],
-                window_size[1],
-                W // window_size[2],
-                window_size[2],
-                x.shape[-1],
-            ),
-        )
-        x_window = TransposeDimensions(x_window, (0, 1, 3, 5, 2, 4, 6, 7))
-
-        # Get data stacked in 3D cubes, which will further be used to calculated attention among each cube
-        x_window = reshape(
-            x_window,
-            target_shape=(
-                -1,
-                window_size[0] * window_size[1] * window_size[2],
-                x.shape[-1],
-            ),
-        )
+        # x: shape of (B * num_windows, win_Z*win_H*win_W, dim)
+        x = window_partition_3d(x, self.window_size, combine_img_dim=True)
 
         # Apply 3D window attention with Earth-Specific bias
-        x_window = self.attention(x, mask)
+        x = self.attention(x, getattr(self, "attn_mask", None))
 
-        # Reorganize data to original shapes
-        x = reshape(
-            x_window,
-            target_shape=(
-                (
-                    -1,
-                    Z // window_size[0],
-                    H // window_size[1],
-                    W // window_size[2],
-                    window_size[0],
-                    window_size[1],
-                    window_size[2],
-                    x_window.shape[-1],
-                )
-            ),
-        )
-        x = TransposeDimensions(x, (0, 1, 4, 2, 5, 3, 6, 7))
-
-        # Reshape the tensor back to its original shape
-        x = reshape(x_window, target_shape=ori_shape)
-
-        if roll:
-            # Roll x back for half of the window
-            x = roll3D(
-                x,
-                shift=[
-                    -self.window_size[0] // 2,
-                    -self.window_size[1] // 2,
-                    -self.window_size[2] // 2,
-                ],
-            )
-
-        # Crop the zero-padding
-        x = Crop3D(x)
-
-        # Reshape the tensor back to the input shape
-        x = reshape(
-            x,
-            target_shape=(x.shape[0], x.shape[1] * x.shape[2] * x.shape[3], x.shape[4]),
+        # x: shape of (B, img_Z, img_H, img_W, dim)
+        x = window_reverse_3d(
+            x, self.window_size, self.input_shape, from_combined_img_dim=True
         )
 
-        # Main calculation stages
+        # forward shift
+        if self.is_rolling:
+            x = x.roll(shifts=[i // 2 for i in self.window_size], dims=(1, 2, 3))
+
+        x = rearrange(x, "b z h w c -> b (z h w) c")
         x = shortcut + self.drop_path(self.norm1(x))
         x = x + self.drop_path(self.norm2(self.linear(x)))
         return x
