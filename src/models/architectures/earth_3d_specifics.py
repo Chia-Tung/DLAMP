@@ -10,6 +10,7 @@ from ..model_utils import (
     window_reverse_3d,
 )
 from .drop_path import DropPath
+from .multilayer_perceptron import MultilayerPerceptron
 
 # Pangu Model
 # TODO: 檢查input shape, window size __len__()
@@ -197,7 +198,7 @@ class EarthSpecificBlock(nn.Module):
         self.drop_path = DropPath(drop_prob=drop_path_ratio)
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
-        # self.linear = MLP(dim, 0)
+        self.MLP = MultilayerPerceptron(dim, 0)
         self.attention = EarthAttention3D(
             dim=dim,
             input_shape=input_shape,
@@ -247,5 +248,5 @@ class EarthSpecificBlock(nn.Module):
 
         x = rearrange(x, "b z h w c -> b (z h w) c")
         x = shortcut + self.drop_path(self.norm1(x))
-        x = x + self.drop_path(self.norm2(self.linear(x)))
+        x = x + self.drop_path(self.norm2(self.MLP(x)))
         return x
