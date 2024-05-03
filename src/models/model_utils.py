@@ -71,56 +71,6 @@ def window_reverse_3d(
     return orig_img
 
 
-def gen_3d_attn_mask(
-    img_shape: tuple[int, int, int],
-    window_size: tuple[int, int, int],
-) -> torch.Tensor:
-    """
-    Generates a 3D attention mask tensor based on the given image shape and window size.
-
-    see https://github.com/microsoft/Swin-Transformer for the official implementation of 2D window attention.
-
-    Args:
-        img_shape (tuple[int, int, int]): The shape of the image tensor (Z, H, W).
-        window_size (tuple[int, int, int]): The size of the sliding window (wZ, wH, wW).
-
-    Returns:
-        torch.Tensor: The 3D attention mask tensor with shape (num_windows, wZ*wH*wW, wZ*wH*wW)
-    """
-    shift_size = tuple(i // 2 for i in window_size)
-    img_mask = torch.zeros(1, img_shape[0], img_shape[1], img_shape[2], 1)
-    z_slices = (
-        slice(0, -window_size[0]),
-        slice(-window_size[0], -shift_size[0]),
-        slice(-shift_size[0], None),
-    )
-    h_slices = (
-        slice(0, -window_size[1]),
-        slice(-window_size[1], -shift_size[1]),
-        slice(-shift_size[1], None),
-    )
-    w_slices = (
-        slice(0, -window_size[2]),
-        slice(-window_size[2], -shift_size[2]),
-        slice(-shift_size[2], None),
-    )
-    cnt = 0
-    for z in z_slices:
-        for h in h_slices:
-            for w in w_slices:
-                img_mask[:, z, h, w, :] = cnt
-                cnt += 1
-    mask_windows = window_partition_3d(img_mask, window_size)
-    mask_windows = mask_windows.reshape(
-        -1, window_size[0] * window_size[1] * window_size[2]
-    )
-    attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-    attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0))
-    attn_mask = attn_mask.masked_fill(attn_mask == 0, float(0.0))
-
-    return attn_mask
-
-
 def pad_3d(
     img_shape: tuple[int, int, int], sub_shape: tuple[int, int, int]
 ) -> nn.ZeroPad3d:
@@ -210,3 +160,18 @@ def crop_pad_2d(
         slice(floor((-H % h) / 2), -ceil((-H % h) / 2)) if H % h != 0 else slice(None),
         slice(floor((-W % w) / 2), -ceil((-W % w) / 2)) if W % w != 0 else slice(None),
     )
+
+
+def is_divisible_elementwise(list1: list[int], list2: list[int]) -> bool:
+    """
+    Check if each element in list1 is divisible by the corresponding element in list2.
+
+    Args:
+        list1 (list[int]): List of integers.
+        list2 (list[int]): List of integers.
+
+    Returns:
+        bool: True if all elements are divisible element-wise, False otherwise.
+    """
+    assert len(list1) == len(list2)
+    return all(x % y == 0 for x, y in zip(list1, list2))
