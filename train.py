@@ -27,6 +27,7 @@ def main(cfg: DictConfig) -> None:
         for lv in value:
             data_list.append(DataCompose(DataType[var], Level[lv]))
     data_manager = DataManager(data_list, **cfg.data, **cfg.hparams)
+    data_manager.setup("fit")
 
     # model
     # TODO: standarization of data, center cropping

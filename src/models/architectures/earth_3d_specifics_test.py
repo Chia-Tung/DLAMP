@@ -119,6 +119,7 @@ class EarthSpecificLayerTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    # CLI: python -m src.models.architectures.earth_3d_specifics_test
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     loader.testMethodPrefix = "test_"  # prefix for test methods

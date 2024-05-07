@@ -1,5 +1,3 @@
-from typing import Sequence
-
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
@@ -22,7 +20,7 @@ class EarthSpecificLayer(nn.Module):
         dim: int,
         heads: int,
         depth: int,
-        drop_path_ratio_list: Sequence[float],
+        drop_path_ratio_list: list[float],
         dropout_rate: float,
         window_size: tuple[int],
     ) -> None:
@@ -30,7 +28,7 @@ class EarthSpecificLayer(nn.Module):
         Basic layer of the network, contains either 2 or 6 blocks
 
         Args:
-            input_shape (tuple[int]): The shape of the input tensor (ing_Z, ing_H, ing_W).
+            input_shape (tuple[int]): The shape of the input tensor (inp_Z, inp_H, inp_W).
             dim (int): The dimension of the input tensor after patch embedding.
             heads (int): The number of heads in the multi-head attention layer.
             depth (int): The number of blocks in this layer.
@@ -40,17 +38,17 @@ class EarthSpecificLayer(nn.Module):
 
         Raises:
             ValueError: If depth is not either 2 or 6.
+            AssertionError: If the length of drop_path_ratio_list is not equal to depth.
 
         Returns:
             None
         """
-        super().__init__()
-
         if depth not in [2, 6]:
             raise ValueError("depth should be either 2 or 6")
         assert (
             len(drop_path_ratio_list) == depth
         ), "length of drop_path_ratio_list should be equal to depth"
+        super().__init__()
 
         self.depth = depth
         self.blocks = nn.ModuleList(
@@ -71,9 +69,9 @@ class EarthSpecificLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x (torch.Tensor): Tensor of shape (batch_size, img_Z*img_H*img_W, dim).
+            x (torch.Tensor): Tensor of shape (batch_size, inp_Z*inp_H*inp_W, dim).
         Returns:
-            torch.Tensor: Tensor of shape (batch_size, img_Z*img_H*img_W, dim).
+            torch.Tensor: Tensor of shape (batch_size, inp_Z*inp_H*inp_W, dim).
         """
         for i in range(self.depth):
             x = self.blocks[i](x)
@@ -97,7 +95,7 @@ class EarthSpecificBlock(nn.Module):
         The major difference is that we expand the dimensions to 3 and replace the relative position bias with Earth-Specific bias.
 
         Args:
-            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (img_Z, img_H, img_W). The input
+            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (inp_Z, inp_H, inp_W). The input
                 tensor represents a 3D image after patch embedding.
             dim (int): The dimension of the input tensor.
             heads (int): The number of attention heads.
@@ -108,7 +106,6 @@ class EarthSpecificBlock(nn.Module):
         Returns:
             None
         """
-        super().__init__()
         assert is_divisible_elementwise(input_shape, window_size), (
             f"Input shape must be divisible by window_size {window_size}, but {input_shape} "
             "cannot be divided by it. \nIn the future, undivisible input shape is accepted only "
@@ -116,6 +113,7 @@ class EarthSpecificBlock(nn.Module):
             "into consideration when generating the attention mask. e.g. if not roll: pad_mask; "
             "if roll: pad_mask + attn_mask."
         )
+        super().__init__()
 
         self.drop_path = DropPath(drop_prob=drop_path_ratio)
         self.norm1 = nn.LayerNorm(dim)
@@ -140,7 +138,7 @@ class EarthSpecificBlock(nn.Module):
 
     def _gen_3d_attn_mask(
         self,
-        img_shape: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         window_size: tuple[int, int, int],
     ) -> torch.Tensor:
         """
@@ -149,14 +147,14 @@ class EarthSpecificBlock(nn.Module):
         see https://github.com/microsoft/Swin-Transformer for the official implementation of 2D window attention.
 
         Args:
-            img_shape (tuple[int, int, int]): The shape of the image tensor (Z, H, W).
-            window_size (tuple[int, int, int]): The size of the sliding window (wZ, wH, wW).
+            input_shape (tuple[int, int, int]): The shape of the image tensor (inp_Z, inp_H, inp_W).
+            window_size (tuple[int, int, int]): The size of the sliding window (win_Z, win_H, win_W).
 
         Returns:
-            torch.Tensor: The 3D attention mask tensor with shape (num_windows, wZ*wH*wW, wZ*wH*wW)
+            torch.Tensor: The 3D attention mask tensor with shape (num_windows, win_Z*win_H*win_W, win_Z*win_H*win_W)
         """
         shift_size = tuple(i // 2 for i in window_size)
-        img_mask = torch.zeros(1, img_shape[0], img_shape[1], img_shape[2], 1)
+        img_mask = torch.zeros(1, input_shape[0], input_shape[1], input_shape[2], 1)
         z_slices = (
             slice(0, -window_size[0]),
             slice(-window_size[0], -shift_size[0]),
@@ -191,13 +189,13 @@ class EarthSpecificBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x (torch.Tensor): Tensor of shape (B, img_Z*img_H*img_W, dim).
+            x (torch.Tensor): Tensor of shape (B, inp_Z*inp_H*inp_W, dim).
         Returns:
-            torch.Tensor: Tensor of shape (B, img_Z*img_H*img_W, dim).
+            torch.Tensor: Tensor of shape (B, inp_Z*inp_H*inp_W, dim).
         """
         shortcut = x
-        img_Z, img_H, img_W = self.input_shape
-        x = rearrange(x, "b (z h w) c -> b z h w c", z=img_Z, h=img_H, w=img_W)
+        inp_Z, inp_H, inp_W = self.input_shape
+        x = rearrange(x, "b (z h w) c -> b z h w c", z=inp_Z, h=inp_H, w=inp_W)
 
         # backward shift
         if self.is_rolling:
@@ -209,7 +207,7 @@ class EarthSpecificBlock(nn.Module):
         # Apply 3D window attention with Earth-Specific bias
         x = self.attention(x, getattr(self, "attn_mask", None))
 
-        # x: shape of (B, img_Z, img_H, img_W, dim)
+        # x: shape of (B, inp_Z, inp_H, inp_W, dim)
         x = window_reverse_3d(
             x, self.window_size, self.input_shape, from_combine_dim=True
         )
@@ -238,7 +236,7 @@ class EarthAttention3D(nn.Module):
         see https://github.com/microsoft/Swin-Transformer for the official implementation of 2D window attention.
 
         Args:
-            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (img_Z, img_H, img_W).
+            input_shape (tuple[int]): The shape of the input tensor whose dimensions are (inp_Z, inp_H, inp_W).
                 The input tensor represents a 3D image after patch embedding.
             dim (int): The dimension of the input tensor.
             heads (int): The number of attention heads.
@@ -248,10 +246,10 @@ class EarthAttention3D(nn.Module):
         Returns:
             None
         """
-        super().__init__()
         assert is_divisible_elementwise(
             [dim], [heads]
         ), f"dim {dim} must be divisible by heads {heads}"
+        super().__init__()
 
         self.linear1 = nn.Linear(dim, dim * 3, bias=True)
         self.linear2 = nn.Linear(dim, dim)

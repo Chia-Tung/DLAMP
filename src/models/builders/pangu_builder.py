@@ -9,6 +9,7 @@ __all__ = ["PanguBuilder"]
 class PanguBuilder(BaseBuilder):
     def __init__(self, **kwargs):
         self.kwargs = OmegaConf.create(kwargs)
+        print(self.kwargs)
 
     def _preprocess_layer(self):
         pass
