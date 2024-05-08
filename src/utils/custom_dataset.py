@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import numpy as np
 from torch.utils.data import Dataset
 
-from src.utils.data_compose import DataCompose
-from src.utils.file_util import gen_path, read_cwa_npfile
+from .data_compose import DataCompose
+from .file_util import gen_path, read_cwa_npfile
 
 
 class CustomDataset(Dataset):
@@ -86,7 +86,7 @@ class CustomDataset(Dataset):
             data = read_cwa_npfile(sub_dir_path, data_compose.is_radar)
             pre_output[data_compose.level.value].append(data)
 
-        # sort by level, ascending order
+        # sort by level, ascending order: 200, 300, 500, 700, 850, 925, H00
         pre_output = dict(sorted(pre_output.items()))
 
         # stack by level
@@ -94,7 +94,7 @@ class CustomDataset(Dataset):
         for k, v in pre_output.items():
             tmp = np.stack(v, axis=-1)  # (h, w, c)
 
-            if k in ["200", "300", "500", "700", "850", "925"]:
+            if k in ["200", "300", "500", "700", "850", "925", "H00"]:
                 output["upper_air"].append(tmp)
             else:
                 output["surface"].append(tmp)

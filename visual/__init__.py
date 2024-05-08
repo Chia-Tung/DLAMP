@@ -1,3 +1,3 @@
-from visual.tw_background import TwBackground
-from visual.viz_radar import VizRadar
-from visual.viz_wind import VizWind
+from .tw_background import TwBackground
+from .viz_radar import VizRadar
+from .viz_wind import VizWind

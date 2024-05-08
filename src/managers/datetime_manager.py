@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 import numpy as np
 from tqdm import tqdm
 
-from src.const import EVAL_CASES
-from src.utils import DataCompose, TimeUtil, gen_path
+from ..const import EVAL_CASES
+from ..utils import DataCompose, TimeUtil, gen_path
 
 log = logging.getLogger(__name__)
 

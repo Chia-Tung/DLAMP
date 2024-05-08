@@ -1,31 +1,37 @@
-start_time: "2021-06-01 00:00"
-end_time: "2021-08-30 00:00"
+start_time: "2017-06-01 00:00"
+end_time: "2017-07-31 00:00"
 format: "%Y-%m-%d %H:%M"
 time_interval: 
   hours: 1
 data_shape: [450, 450]
 train_data:
   GeoHeight:
+    - Hpa1000
     - Hpa925
     - Hpa850
     - Hpa700
     - Hpa500
+    - Hpa200
   T:
+    - Hpa1000
     - Hpa925
     - Hpa850
     - Hpa700
     - Hpa500
+    - Hpa200
   U:
+    - Hpa1000
     - Hpa925
     - Hpa850
     - Hpa700
     - Hpa500
+    - Hpa200
   V:
+    - Hpa1000
     - Hpa925
     - Hpa850
     - Hpa700
     - Hpa500
+    - Hpa200
   Radar:
     - NoRule
-
-

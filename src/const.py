@@ -8,7 +8,7 @@ VAR_SUFFIX = "WE01H0202500"
 
 # Path
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
-DATA_PATH = "/wk1/rwf/"
+DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"
 
 # Radar color bar

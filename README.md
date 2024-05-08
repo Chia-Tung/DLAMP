@@ -14,5 +14,5 @@ make install
 other packages
 ```
 pip3 install -r requirements.txt
-pip-upgrade upgrade.txt --skip-package-installation
+pip3 install hydra-core --upgrade
 ```

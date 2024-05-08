@@ -1,7 +1,7 @@
 from pydantic.dataclasses import dataclass
 
-from src.const import VAR_SUFFIX
-from src.utils.data_type import DataType, Level
+from ..const import VAR_SUFFIX
+from .data_type import DataType, Level
 
 
 @dataclass

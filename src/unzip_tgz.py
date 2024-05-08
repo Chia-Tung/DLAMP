@@ -2,6 +2,8 @@ import logging
 import tarfile
 from pathlib import Path
 
+from src.const import DATA_PATH
+
 logging.basicConfig(
     filename=Path(__file__).parent.resolve() / "unzip.log",
     level=logging.DEBUG,
@@ -13,10 +15,10 @@ def main():
     logger = logging.getLogger("dev")
     logger.info("start to unzip")
 
-    file_dir = Path("/wk1/rwf/")
-    tar_gz_files = list(file_dir.glob("*.tar.gz"))
+    file_dir = Path(DATA_PATH)
+    tar_gz_files = sorted(file_dir.glob("*.tar.gz"))
 
-    for tar_gz_file in tar_gz_files[-2:]:
+    for tar_gz_file in tar_gz_files:
         # new dir
         new_dir_name = tar_gz_file.name.split(".")[0]
         new_dir = Path(tar_gz_file.parent / new_dir_name)
@@ -42,7 +44,7 @@ def main():
 
 
 def move_files():
-    file_dir = Path("/wk1/rwf/")
+    file_dir = Path(DATA_PATH)
     target_subdir = ["rwf_202005-06", "rwf_202105-06"]
 
     for subdir in target_subdir:
@@ -61,4 +63,3 @@ def move_files():
 
 if __name__ == "__main__":
     main()
-    move_files()
