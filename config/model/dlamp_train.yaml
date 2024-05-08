@@ -1,13 +1,14 @@
 model_name: Pangu
 # patch embedding
-patch_shape: [2, 2, 2]
-constant_mask_paths: null
+patch_size: [2, 2, 2]
+smoothing_kernel_size: null
+const_mask_paths: null
 # earth layer
 depths: [2, 6]
 # earth block
-max_drop_path: 0.2
+max_drop_path_ratio: 0.2
 # earth attn 3d
 heads: [6, 12]
-dim: 192
+embed_dim: 192
 dropout_rate: 0
 window_size: [2, 4, 4]
