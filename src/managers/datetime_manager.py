@@ -162,7 +162,7 @@ class DatetimeManager:
         """
         s = time.time()
         dt_to_remove = set()
-        for dt in tqdm(self.time_list, desc="Sanity check"):
+        for dt in tqdm(self.time_list, desc="Data sanity check"):
             sub_dir_generator = (gen_path(dt, data) for data in data_list)
             while True:
                 try:

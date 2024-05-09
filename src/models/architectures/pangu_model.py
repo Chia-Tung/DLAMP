@@ -306,7 +306,9 @@ class PatchRecovery(nn.Module):
                 and surface data (B, 1, img_H, img_W, Ch_surface)
         """
         inp_Z, inp_H, inp_W = self.inp_shape
-        x = rearrange(x, "b (z h w) c -> b c z h w", z=inp_Z, h=inp_H, w=inp_W)
+        x = rearrange(
+            x, "b (z h w) c -> b c z h w", z=inp_Z, h=inp_H, w=inp_W
+        ).contiguous()
 
         # Deconvolve to original size
         output_upper = self.conv_upper(x[:, :, :-1, :, :])

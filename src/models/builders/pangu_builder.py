@@ -1,7 +1,14 @@
 import torch
 import torch.nn as nn
 from einops.layers.torch import Rearrange
-from lightning import LightningModule
+from lightning import LightningModule, Trainer
+from lightning.pytorch.callbacks import (
+    EarlyStopping,
+    LearningRateMonitor,
+    ModelCheckpoint,
+)
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.profilers import PyTorchProfiler
 from torchvision.transforms.v2 import CenterCrop, Resize, ToDtype
 
 from ...const import CHECKPOINT_DIR
@@ -57,7 +64,7 @@ class PanguBuilder(BaseBuilder):
             const_mask_paths=self.kwargs.const_mask_paths,
         )
 
-    def build(self) -> LightningModule:
+    def build_model(self) -> LightningModule:
         return PanguLightningModule(
             checkpoint_dir=CHECKPOINT_DIR,
             preprocess_layer=self._preprocess_layer(),
@@ -70,4 +77,43 @@ class PanguBuilder(BaseBuilder):
             surface_vars=self.surface_vars,
             optim_config=self.kwargs.optim_config,
             lr_schedule=self.kwargs.lr_schedule,
+        )
+
+    def build_trainer(self, num_gpus: int, max_epochs: int) -> Trainer:
+        return Trainer(
+            num_sanity_val_steps=2,
+            benchmark=True,
+            fast_dev_run=False,  # use n batch(es) to fast run through train/valid
+            logger=self.wandb_logger(),
+            check_val_every_n_epoch=1,
+            max_epochs=max_epochs,
+            limit_train_batches=None,
+            limit_val_batches=None,
+            accelerator="gpu",
+            devices=[i for i in range(num_gpus)],
+            strategy="ddp",
+            callbacks=[
+                LearningRateMonitor(),
+                EarlyStopping(monitor="val_loss_epoch", patience=50),
+                self.checkpoint_callback(),
+            ],
+            profiler=PyTorchProfiler(dirpath="./profiler", filename="pytorch_profile"),
+        )
+
+    def checkpoint_callback(self) -> ModelCheckpoint:
+        return ModelCheckpoint(
+            dirpath=CHECKPOINT_DIR,
+            filename=self.kwargs.model_name + "-{epoch:02d}-{val_loss_epoch:.6f}",
+            save_top_k=3,
+            verbose=True,
+            monitor="val_loss_epoch",
+            mode="min",
+        )
+
+    def wandb_logger(self) -> WandbLogger:
+        return WandbLogger(
+            save_dir="logs",
+            log_model="all",
+            project="my-awesome-project",
+            name=self.kwargs.model_name,
         )

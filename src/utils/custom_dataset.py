@@ -98,12 +98,13 @@ class CustomDataset(Dataset):
             else:
                 output["upper_air"].append(tmp)
 
-        # integration
+        # Warning: LightningModule doesn't support defaultdict as input/output
+        final = {}
         for k, v in output.items():
-            output[k] = np.stack(v, axis=0)  # {'upper_air': (lv, h, w, c), ...}
-            self._shape_check(dt, output[k])
+            final[k] = np.stack(v, axis=0)  # {'upper_air': (lv, h, w, c), ...}
+            self._shape_check(dt, final[k])
 
-        return output
+        return final
 
     def _shape_check(self, target_dt: datetime, data: np.ndarray):
         """

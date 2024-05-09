@@ -1,7 +1,7 @@
 import abc
 import logging
 
-from lightning import LightningModule
+from lightning import LightningModule, Trainer
 from omegaconf import OmegaConf
 
 
@@ -16,5 +16,9 @@ class BaseBuilder(metaclass=abc.ABCMeta):
         self.log.info(f"[{self.__class__.__name__}] {content}")
 
     @abc.abstractmethod
-    def build(self) -> LightningModule:
+    def build_model(self) -> LightningModule:
+        return NotImplemented
+
+    @abc.abstractmethod
+    def build_trainer(self) -> Trainer:
         return NotImplemented

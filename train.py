@@ -21,18 +21,21 @@ def main(cfg: DictConfig) -> None:
     # prevent access to non-existing keys
     OmegaConf.set_struct(cfg, True)
 
-    # generate data
+    # prepare data
     data_list = DataCompose.from_config(cfg.data.train_data)
     data_manager = DataManager(data_list, **cfg.data, **cfg.hparams)
-    data_manager.setup("fit")
 
     # model
     model_builder = get_builder(cfg.model.model_name)(
         data_list, **cfg.model, **cfg.hparams
     )
-    model = model_builder.build()
+    model = model_builder.build_model()
 
     # trainer
+    trainer = model_builder.build_trainer(cfg.hparams.num_gpus, cfg.hparams.max_epochs)
+
+    # start training
+    trainer.fit(model, data_manager)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ split_config:
   ratios: [6, 2, 2]
   order_by_time: True
 sampling_rate: 3
-batch_size: 16
+batch_size: 4
 workers: 4
 # LightningModule
 image_shape: [224, 224]
@@ -19,3 +19,6 @@ lr_schedule:
   name: cosine
   args:
     warmup_steps: 1000
+# trainer
+num_gpus: 4
+max_epochs: 100
