@@ -41,7 +41,6 @@ class VizRadar(TwBackground):
 
 
 if __name__ == "__main__":
-    # `export PYTHONPATH=$PYTHONPATH:/wk171/handsomedong/DLAMP` in CLI
     target_time = datetime(2022, 10, 1, 0)
     data_radar = gen_data(target_time, {"var": "Radar", "lv": "NoRule"})
     data_lat = gen_data(target_time, {"var": "Lat", "lv": "Surface"})

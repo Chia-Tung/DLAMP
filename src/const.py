@@ -7,6 +7,7 @@ import numpy as np
 VAR_SUFFIX = "WE01H0202500"
 
 # Path
+CHECKPOINT_DIR = "./checkpoints/"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
 DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"

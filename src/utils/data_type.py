@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import StrEnum
 
 
@@ -27,3 +29,6 @@ class Level(StrEnum):
     Surface = "S00"
     SeaSurface = "W00"
     NoRule = "X00"
+
+    def is_surface(self) -> bool:
+        return self in [self.Surface, self.SeaSurface, self.NoRule]

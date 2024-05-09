@@ -1,4 +1,4 @@
-image_shape: [224, 224]
+# LightningDatamodule
 input_len: 1
 output_len: 1
 split_config:
@@ -7,3 +7,15 @@ split_config:
 sampling_rate: 3
 batch_size: 16
 workers: 4
+# LightningModule
+image_shape: [224, 224]
+surface_alpha: 0.25
+optim_config:
+  name: AdamW
+  args:
+    lr: 2e-4
+    weight_decay: 3e-6
+lr_schedule:
+  name: cosine
+  args:
+    warmup_steps: 1000
