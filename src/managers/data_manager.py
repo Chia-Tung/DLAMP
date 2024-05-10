@@ -1,7 +1,6 @@
 import logging
 
 import lightning as L
-import numpy as np
 from torch.utils.data import DataLoader, RandomSampler
 
 from ..utils import CustomDataset, DataCompose
@@ -55,7 +54,7 @@ class DataManager(L.LightningDataModule):
             return
 
         if not self.dtm.is_done:
-            self.dtm.build_path_list().sanity_check(self.data_list).random_split(
+            self.dtm.build_initial_time_list(self.data_list).random_split(
                 **self.hparams.split_config
             ).build_blacklist().swap_eval_cases_from_train_valid()
             self.dtm.is_done = True

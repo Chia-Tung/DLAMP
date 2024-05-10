@@ -32,7 +32,7 @@ def main(cfg: DictConfig) -> None:
     model = model_builder.build_model()
 
     # trainer
-    trainer = model_builder.build_trainer(cfg.hparams.num_gpus, cfg.hparams.max_epochs)
+    trainer = model_builder.build_trainer()
 
     # start training
     trainer.fit(model, data_manager)

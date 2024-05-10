@@ -19,6 +19,6 @@ lr_schedule:
   name: cosine
   args:
     warmup_steps: 1000
-# trainer
-num_gpus: 4
+# lightning.Trainer
+num_gpus: null
 max_epochs: 100

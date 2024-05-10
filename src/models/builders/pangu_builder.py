@@ -81,19 +81,25 @@ class PanguBuilder(BaseBuilder):
             lr_schedule=self.kwargs.lr_schedule,
         )
 
-    def build_trainer(self, num_gpus: int, max_epochs: int) -> Trainer:
+    def build_trainer(self) -> Trainer:
+        num_gpus = (
+            torch.cuda.device_count()
+            if self.kwargs.num_gpus is None
+            else self.kwargs.num_gpus
+        )
+
         return Trainer(
             num_sanity_val_steps=2,
             benchmark=True,
             fast_dev_run=False,  # use n batch(es) to fast run through train/valid
             logger=self.wandb_logger(),
             check_val_every_n_epoch=1,
-            max_epochs=max_epochs,
+            max_epochs=self.kwargs.max_epochs,
             limit_train_batches=None,
             limit_val_batches=None,
             accelerator="gpu",
             devices=[i for i in range(num_gpus)],
-            strategy="ddp",
+            strategy="auto" if num_gpus <= 1 else "ddp",
             callbacks=[
                 LearningRateMonitor(),
                 EarlyStopping(monitor="val_loss_epoch", patience=50),
@@ -115,7 +121,7 @@ class PanguBuilder(BaseBuilder):
     def wandb_logger(self, save_dir: str = "./logs") -> WandbLogger:
         Path(save_dir).mkdir(parents=True, exist_ok=True)
         return WandbLogger(
-            save_dir="logs",
+            save_dir=save_dir,
             log_model="all",
             project="my-awesome-project",
             name=self.kwargs.model_name,
