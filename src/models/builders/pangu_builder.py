@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 from einops.layers.torch import Rearrange
@@ -110,7 +112,8 @@ class PanguBuilder(BaseBuilder):
             mode="min",
         )
 
-    def wandb_logger(self) -> WandbLogger:
+    def wandb_logger(self, save_dir: str = "./logs") -> WandbLogger:
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
         return WandbLogger(
             save_dir="logs",
             log_model="all",
