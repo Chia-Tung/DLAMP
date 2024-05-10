@@ -3,8 +3,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Hydra
+# Hydra logs
 outputs/**
+
+# logger (e.g. Tensorboard, wandb)
+logs/
+
+# checkpoint
+checkpoints/
+
+# PyTorch Profiler
+profiler/
 
 # Django stuff:
 *.log
@@ -20,7 +29,3 @@ ipython_config.py
 
 # Figures
 *.png
-
-# logs
-logs/
-profiler/

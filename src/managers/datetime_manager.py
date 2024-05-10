@@ -49,6 +49,7 @@ class DatetimeManager:
         """
         s = time.time()
         skip_current: bool = False
+        num_remove = 0
         num_time = int((self.end_time - self.start_time) / self.interval) + 1
         pbar = tqdm(total=num_time, desc="Building initial time list...")
 
@@ -61,6 +62,7 @@ class DatetimeManager:
                 current_time += 2 * self.interval
                 skip_current = False
                 pbar.update(2)
+                num_remove += 2
                 continue
 
             # skip checking current time if `skip_current = True`
@@ -68,6 +70,7 @@ class DatetimeManager:
                 current_time += self.interval
                 skip_current = True
                 pbar.update(1)
+                num_remove += 1
                 continue
 
             self.time_list.append(current_time)
@@ -75,8 +78,9 @@ class DatetimeManager:
             skip_current = True
             pbar.update(1)
 
-        log.debug(f"{self.BC} Built initial time list in {time.time() - s:.5f} sec.")
         pbar.close()
+        log.info(f"Removed {num_remove} datetimes during data sanity check.")
+        log.debug(f"{self.BC} Built initial time list in {time.time() - s:.5f} sec.")
         return self
 
     def random_split(
