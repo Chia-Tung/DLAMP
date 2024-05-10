@@ -10,13 +10,11 @@ __all__ = ["PanguLightningModule"]
 
 # TODO: weighted MAE loss
 class PanguLightningModule(L.LightningModule):
-    def __init__(self, *, checkpoint_dir: str, **kwargs):
+    def __init__(self, *, preprocess_layer, backbone_model, **kwargs):
         super().__init__()
         self.save_hyperparameters(ignore=["preprocess_layer", "backbone_model"])
-
-        self.ckpt_dir = checkpoint_dir
-        self.preprocess_layer = kwargs["preprocess_layer"]
-        self.backbone_model = kwargs["backbone_model"]
+        self.preprocess_layer: nn.Module = preprocess_layer
+        self.backbone_model: nn.Module = backbone_model
 
         if kwargs["upper_var_weights"] is None or kwargs["surface_var_weights"] is None:
             self.weighted_loss = False
@@ -115,15 +113,15 @@ class PanguLightningModule(L.LightningModule):
         )
         return loss
 
-    def on_before_optimizer_step(self, optimizer):
-        # Compute the 2-norm for each layer
-        # If using mixed precision, the gradients are already unscaled here
-        norms = grad_norm(self.backbone_model, norm_type=2)
-        self.log(
-            name="gradient_2norm", value=norms["grad_2.0_norm_total"], on_step=True
-        )
-        norms.pop("grad_2.0_norm_total")
-        self.log_dict(norms, on_step=True)
+    # Compute the 2-norm for each layer
+    # If using mixed precision, the gradients are already unscaled here
+    # def on_before_optimizer_step(self, optimizer):
+    #     norms = grad_norm(self.backbone_model, norm_type=2)
+    #     self.log(
+    #         name="gradient_2norm", value=norms["grad_2.0_norm_total"], on_step=True
+    #     )
+    #     norms.pop("grad_2.0_norm_total")
+    #     self.log_dict(norms, on_step=True)
 
     def preprocess(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         new_data = {}

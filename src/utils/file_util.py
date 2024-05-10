@@ -24,7 +24,9 @@ def gen_data(target_time: datetime, data_compose: DataCompose):
     return read_cwa_npfile(file_dir, data_compose.is_radar)
 
 
-def read_cwa_npfile(file_path: Path, is_radar: bool = False) -> np.ndarray:
+def read_cwa_npfile(
+    file_path: Path, is_radar: bool, dtype: np.dtype | None = None
+) -> np.ndarray:
     """
     The x and y grids point of RWRF model data are 450 and 450, respectively.
 
@@ -35,10 +37,13 @@ def read_cwa_npfile(file_path: Path, is_radar: bool = False) -> np.ndarray:
     data = np.fromfile(file_path, dtype=">d", count=-1, sep="").reshape(450, 450)
 
     if is_radar and (np.all(data < 0.1) and np.all(np.log(data) > -10000)):
-        return np.fromfile(file_path, dtype="<d", count=-1, sep="").reshape(450, 450)
+        data = np.fromfile(file_path, dtype="<d", count=-1, sep="").reshape(450, 450)
 
     if (not is_radar) and np.all(np.log(data) < -500):
-        return np.fromfile(file_path, dtype="<d", count=-1, sep="").reshape(450, 450)
+        data = np.fromfile(file_path, dtype="<d", count=-1, sep="").reshape(450, 450)
+
+    if dtype is not None:
+        data = data.astype(dtype)
 
     return data
 

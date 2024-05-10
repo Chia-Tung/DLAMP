@@ -36,25 +36,51 @@ class DatetimeManager:
         self.blacklist: set[datetime] = set()
         self._done = False
 
-    def build_path_list(self) -> DatetimeManager:
+    def build_initial_time_list(self, data_list: list[DataCompose]) -> DatetimeManager:
         """
-        Builds a list of parent directories between the start time and end time,
-        with intervals specified by the `interval` attribute. Both current parent
-        directory and next parent directory must exist.
+        Builds initial time list based on the start time and end time. Eliminates datetime which
+        does not meet the sanity check for both current time and next time.
+
+        Args:
+            data_list (list[DataCompose]): The list of DataCompose objects.
 
         Returns:
-            DatetimeManager: The updated DatetimeManager object with the built path list.
+            DatetimeManager: The updated DatetimeManager object with the initial time list.
         """
         s = time.time()
+        skip_current: bool = False
+        num_remove = 0
+        num_time = int((self.end_time - self.start_time) / self.interval) + 1
+        pbar = tqdm(total=num_time, desc="Building initial time list...")
+
         current_time = self.start_time
-        current_parent_dir = gen_path(current_time)
+        pbar.update(1)
         while current_time < self.end_time:
-            next_parent_dir = gen_path(current_time + self.interval)
-            if current_parent_dir.exists() and next_parent_dir.exists():
-                self.time_list.append(current_time)
+            next_time = current_time + self.interval
+
+            if not self._sanity_check(next_time, data_list):
+                current_time += 2 * self.interval
+                skip_current = False
+                pbar.update(2)
+                num_remove += 2
+                continue
+
+            # skip checking current time if `skip_current = True`
+            if not skip_current and not self._sanity_check(current_time, data_list):
+                current_time += self.interval
+                skip_current = True
+                pbar.update(1)
+                num_remove += 1
+                continue
+
+            self.time_list.append(current_time)
             current_time += self.interval
-            current_parent_dir = next_parent_dir
-        log.debug(f"{self.BC} Built path list in {time.time() - s:.5f} seconds.")
+            skip_current = True
+            pbar.update(1)
+
+        pbar.close()
+        log.info(f"Removed {num_remove} datetimes during data sanity check.")
+        log.debug(f"{self.BC} Built initial time list in {time.time() - s:.5f} sec.")
         return self
 
     def random_split(
@@ -105,7 +131,7 @@ class DatetimeManager:
                     f"{category}_time", set(time_list_array[start_idx:end_idx])
                 )
 
-        log.debug(f"{self.BC} Split data in {time.time() - s:.5f} seconds.")
+        log.debug(f"{self.BC} Split data in {time.time() - s:.5f} sec.")
         log.debug(f"train_time size (original): {len(self.train_time)}")
         log.debug(f"valid_time size (original): {len(self.valid_time)}")
         log.debug(f"test_time size (original): {len(self.test_time)}")
@@ -146,38 +172,30 @@ class DatetimeManager:
             elif key == "three_days":
                 self.blacklist |= set(get_datetime_list(value, TimeUtil.three_days))
 
-        log.debug(f"{self.BC} Built blacklist in {time.time() - s:.5f} seconds.")
+        log.debug(f"{self.BC} Built blacklist in {time.time() - s:.5f} sec.")
         log.debug(f"Blacklist size: {len(self.blacklist)}")
         return self
 
-    def sanity_check(self, data_list: list[DataCompose]) -> DatetimeManager:
+    def _sanity_check(self, dt: datetime, data_list: list[DataCompose]) -> bool:
         """
-        Check the sanity of the path dictionary by verifying the existence of sub-directory paths for each key.
+        Check the sanity of the parent directory (../rwrf/rwf_201706/2017060100000000) regarding
+        dt by verifying the existence of all target data files under this parent directory.
 
         Parameters:
+            dt (datetime): The target parent directory to check
             data_list (list[DataCompose]): A list of DataCompose objects representing the data.
 
         Returns:
-            DatetimeManager: The updated DatetimeManager object with the removed keys from the path dictionary.
+            bool: True if all target data files exist, False otherwise.
         """
-        s = time.time()
-        dt_to_remove = set()
-        for dt in tqdm(self.time_list, desc="Data sanity check"):
-            sub_dir_generator = (gen_path(dt, data) for data in data_list)
-            while True:
-                try:
-                    sub_dir = next(sub_dir_generator)
-                    if not sub_dir.exists():
-                        dt_to_remove.add(dt)
-                        break
-                except StopIteration:
-                    break
-
-        self.time_list = list(set(self.time_list) - dt_to_remove)
-
-        log.debug(f"{self.BC} Sanity check in {time.time() - s:.5f} seconds.")
-        log.info(f"Removed {len(dt_to_remove)} keys during sanity check.")
-        return self
+        data_filename_generator = (gen_path(dt, data) for data in data_list)
+        while True:
+            try:
+                data_filename = next(data_filename_generator)
+                if not data_filename.exists():
+                    return False
+            except StopIteration:
+                return True
 
     def swap_eval_cases_from_train_valid(self) -> DatetimeManager:
         """
@@ -206,7 +224,7 @@ class DatetimeManager:
         s = time.time()
         fn("train")
         fn("valid")
-        log.debug(f"{self.BC} Swapped eval cases in {time.time() - s:.5f} seconds.")
+        log.debug(f"{self.BC} Swapped eval cases in {time.time() - s:.5f} sec.")
         return self
 
     @property
