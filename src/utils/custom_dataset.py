@@ -81,30 +81,30 @@ class CustomDataset(Dataset):
                 are numpy arrays containing the variables stacked along the specified axis.
         """
         pre_output = defaultdict(list)
+        # via traversing data_list, the levels/vars are in the the same order as the
+        # order in `config/data/data_config.yaml`
         for data_compose in self._data_list:
             sub_dir_path = gen_path(dt, data_compose)
             data = read_cwa_npfile(sub_dir_path, data_compose.is_radar)
-            pre_output[data_compose.level.value].append(data)
-
-        # sort by level, ascending order: 200, 300, 500, 700, 850, 925, H00
-        pre_output = dict(sorted(pre_output.items()))
+            pre_output[data_compose.level].append(data)
 
         # stack by level
         output = defaultdict(list)
-        for k, v in pre_output.items():
-            tmp = np.stack(v, axis=-1)  # (h, w, c)
+        for level, value in pre_output.items():
+            tmp = np.stack(value, axis=-1)  # (h, w, c)
 
-            if k in ["200", "300", "500", "700", "850", "925", "H00"]:
-                output["upper_air"].append(tmp)
-            else:
+            if level.is_surface():
                 output["surface"].append(tmp)
+            else:
+                output["upper_air"].append(tmp)
 
-        # integration
+        # Warning: LightningModule doesn't support defaultdict as input/output
+        final = {}
         for k, v in output.items():
-            output[k] = np.stack(v, axis=0)  # {'upper_air': (lv, h, w, c), ...}
-            self._shape_check(dt, output[k])
+            final[k] = np.stack(v, axis=0)  # {'upper_air': (lv, h, w, c), ...}
+            self._shape_check(dt, final[k])
 
-        return output
+        return final
 
     def _shape_check(self, target_dt: datetime, data: np.ndarray):
         """

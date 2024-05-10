@@ -20,3 +20,7 @@ ipython_config.py
 
 # Figures
 *.png
+
+# logs
+logs/
+profiler/

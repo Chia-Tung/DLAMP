@@ -6,7 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from src.managers import DataManager
 from src.models import get_builder
-from src.utils import DataCompose, DataType, Level
+from src.utils import DataCompose
 
 log = logging.getLogger(__name__)
 
@@ -21,17 +21,21 @@ def main(cfg: DictConfig) -> None:
     # prevent access to non-existing keys
     OmegaConf.set_struct(cfg, True)
 
-    # generate data
-    data_list = []
-    for var, value in cfg.data.train_data.items():
-        for lv in value:
-            data_list.append(DataCompose(DataType[var], Level[lv]))
+    # prepare data
+    data_list = DataCompose.from_config(cfg.data.train_data)
     data_manager = DataManager(data_list, **cfg.data, **cfg.hparams)
-    data_manager.setup("fit")
 
     # model
-    # TODO: standarization of data, center cropping
-    model_builder = get_builder(cfg.model.model_name)(**cfg.model, **cfg.hparams)
+    model_builder = get_builder(cfg.model.model_name)(
+        data_list, **cfg.model, **cfg.hparams
+    )
+    model = model_builder.build_model()
+
+    # trainer
+    trainer = model_builder.build_trainer(cfg.hparams.num_gpus, cfg.hparams.max_epochs)
+
+    # start training
+    trainer.fit(model, data_manager)
 
 
 if __name__ == "__main__":

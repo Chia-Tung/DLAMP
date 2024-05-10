@@ -1,6 +1,7 @@
 import logging
 
 import lightning as L
+import numpy as np
 from torch.utils.data import DataLoader, RandomSampler
 
 from ..utils import CustomDataset, DataCompose
@@ -49,7 +50,7 @@ class DataManager(L.LightningDataModule):
             NotImplementedError: If the stage is "predict".
             ValueError: If the stage is invalid.
         """
-        if stage and self._already_called[stage]:
+        if self._already_called[stage]:
             log.warning(f'Stage "{stage}" has already been called. Skipping...')
             return
 
@@ -89,7 +90,7 @@ class DataManager(L.LightningDataModule):
             f"Testing Data Size: {len(self.dtm.test_time) // self.hparams.sampling_rate}"
         )
         self.info_log(
-            f"Image Shape: {self.hparams.data_shape}, Batch Size: {self.hparams.batch_size}"
+            f"Data Shape: {self.hparams.data_shape}, Batch Size: {self.hparams.batch_size}"
         )
 
     def _setup(self, stage: str):
