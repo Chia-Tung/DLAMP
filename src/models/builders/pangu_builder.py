@@ -68,7 +68,6 @@ class PanguBuilder(BaseBuilder):
 
     def build_model(self) -> LightningModule:
         return PanguLightningModule(
-            checkpoint_dir=CHECKPOINT_DIR,
             preprocess_layer=self._preprocess_layer(),
             backbone_model=self._backbone_model(),
             upper_var_weights=None,

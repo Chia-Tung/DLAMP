@@ -74,8 +74,8 @@ class CustomDataset(Dataset):
             dict: A dictionary containing the variables retrieved from the datetime object.
                 The dictionary has the following structure:
                 {
-                    'upper_air': numpy.ndarray,
-                    'surface': numpy.ndarray
+                    'upper_air': numpy.ndarray (z, h, w, c),
+                    'surface': numpy.ndarray (z, h, w, c)
                 }
                 Each key in the dictionary corresponds to levels of variables, and the values
                 are numpy arrays containing the variables stacked along the specified axis.
@@ -88,27 +88,29 @@ class CustomDataset(Dataset):
             data = read_cwa_npfile(sub_dir_path, data_compose.is_radar)
             pre_output[data_compose.level].append(data)
 
-        # stack by level
+        # concatenate by variable, group by level
         output = defaultdict(list)
         for level, value in pre_output.items():
-            tmp = np.stack(value, axis=-1)  # (h, w, c)
+            value = np.stack(value, axis=-1)  # (h, w, c)
 
             if level.is_surface():
-                output["surface"].append(tmp)
+                output["surface"].append(value)
             else:
-                output["upper_air"].append(tmp)
+                output["upper_air"].append(value)
+        del pre_output
 
+        # concatenate by level
         # Warning: LightningModule doesn't support defaultdict as input/output
         final = {}
-        for k, v in output.items():
-            final[k] = np.stack(v, axis=0)  # {'upper_air': (lv, h, w, c), ...}
-            self._shape_check(dt, final[k])
+        for key, value in output.items():
+            final[key] = np.stack(value, axis=0)  # {'upper_air': (lv, h, w, c), ...}
+            self._data_shape_check(dt, final[key])
 
         return final
 
-    def _shape_check(self, target_dt: datetime, data: np.ndarray):
+    def _data_shape_check(self, target_dt: datetime, data: np.ndarray):
         """
-        Check if the shape of the given data matches the expected shape.
+        Check if the shape of the given data matches the original data shape.
 
         Args:
             target_dt (datetime): The target datetime for which the data is being checked.
