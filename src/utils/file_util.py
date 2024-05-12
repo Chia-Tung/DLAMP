@@ -92,3 +92,22 @@ def gen_path(target_time: datetime) -> Path:
         / f"rwf_{target_time.strftime('%Y%m')}"
         / f"{target_time.strftime('%Y%m%d%H%M')}0000"
     )
+
+
+def convert_hydra_dir_to_timestamp(hydra_dir: Path) -> str:
+    """
+    Convert a directory path to a timestamp string.
+
+    Args:
+        hydra_dir (Path): The path to the hydra output directory.
+
+    Returns:
+        str: The timestamp string in the format "%y%m%d_%H%M%S".
+
+    Raises:
+        ValueError: If the hydra directory path cannot be parsed into a datetime object.
+    """
+    dt = datetime.strptime(
+        f"{hydra_dir.parent.name} {hydra_dir.name}", "%Y-%m-%d %H:%M:%S"
+    )
+    return dt.strftime("%y%m%d_%H%M%S")

@@ -14,7 +14,7 @@ from lightning.pytorch.profilers import PyTorchProfiler
 from torchvision.transforms.v2 import CenterCrop, Resize, ToDtype
 
 from ...const import CHECKPOINT_DIR
-from ...utils import DataCompose
+from ...utils import DataCompose, convert_hydra_dir_to_timestamp
 from .. import PanguModel
 from ..lightning_modules import PanguLightningModule
 from .base_builder import BaseBuilder
@@ -23,7 +23,7 @@ __all__ = ["PanguBuilder"]
 
 
 class PanguBuilder(BaseBuilder):
-    def __init__(self, data_list: list[DataCompose], **kwargs):
+    def __init__(self, hydra_dir: Path, data_list: list[DataCompose], **kwargs):
         super().__init__(**kwargs)
 
         self.pressure_levels: list[str] = DataCompose.get_all_levels(
@@ -35,6 +35,8 @@ class PanguBuilder(BaseBuilder):
         self.surface_vars: list[str] = DataCompose.get_all_vars(
             data_list, only_surface=True, to_str=True
         )
+
+        self.time_stamp = convert_hydra_dir_to_timestamp(hydra_dir)
 
         self.info_log(f"Input Image Shape: {self.kwargs.image_shape}")
         self.info_log(f"Patch Size: {self.kwargs.patch_size}")
@@ -110,7 +112,9 @@ class PanguBuilder(BaseBuilder):
     def checkpoint_callback(self) -> ModelCheckpoint:
         return ModelCheckpoint(
             dirpath=CHECKPOINT_DIR,
-            filename=self.kwargs.model_name + "-{epoch:02d}-{val_loss_epoch:.6f}",
+            filename=self.kwargs.model_name
+            + f"_{self.time_stamp}"
+            + "-{epoch:03d}-{val_loss_epoch:.4f}",
             save_top_k=3,
             verbose=True,
             monitor="val_loss_epoch",
@@ -121,7 +125,7 @@ class PanguBuilder(BaseBuilder):
         Path(save_dir).mkdir(parents=True, exist_ok=True)
         return WandbLogger(
             save_dir=save_dir,
-            log_model=True,
+            log_model=False, # log W&B artifacts
             project="my-awesome-project",
-            name=self.kwargs.model_name,
+            name=self.kwargs.model_name + f"_{self.time_stamp}",
         )

@@ -14,11 +14,13 @@ log = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path="config", config_name="train")
 def main(cfg: DictConfig) -> None:
+    hydra_oup_dir = Path(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir)
     log.info(f"Working directory: {Path.cwd()}")
-    log.info(
-        f"Output directory: {hydra.core.hydra_config.HydraConfig.get().runtime.output_dir}"
-    )
-    seed_everything(1000)
+    log.info(f"Output directory: {hydra_oup_dir}")
+
+    # lightning ddp strategy doesn't need manual seed
+    # https://github.com/Lightning-AI/pytorch-lightning/issues/12986
+    # seed_everything(1000)
 
     # prevent access to non-existing keys
     OmegaConf.set_struct(cfg, True)
@@ -29,7 +31,7 @@ def main(cfg: DictConfig) -> None:
 
     # model
     model_builder = get_builder(cfg.model.model_name)(
-        data_list, **cfg.model, **cfg.lightning
+        hydra_oup_dir, data_list, **cfg.model, **cfg.lightning
     )
     model = model_builder.build_model()
 
