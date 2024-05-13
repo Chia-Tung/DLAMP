@@ -2,10 +2,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 
 from .data_compose import DataCompose
-from .file_util import gen_path, read_cwa_npfile
+from .file_util import gen_data
 
 
 class CustomDataset(Dataset):
@@ -63,19 +64,20 @@ class CustomDataset(Dataset):
 
         return input, output
 
-    def _get_variables_from_dt(self, dt: datetime):
+    def _get_variables_from_dt(self, dt: datetime, to_tensor: bool = False):
         """
         Retrieves data from a given datetime object.
 
         Parameters:
             dt (datetime): The datetime object to retrieve variables from.
+            to_tensor (bool, optional): Whether to convert the data to a PyTorch tensor.
 
         Returns:
             dict: A dictionary containing the variables retrieved from the datetime object.
                 The dictionary has the following structure:
                 {
-                    'upper_air': numpy.ndarray (z, h, w, c),
-                    'surface': numpy.ndarray (z, h, w, c)
+                    'upper_air': numpy.ndarray | torch.Tensor (z, h, w, c),
+                    'surface': numpy.ndarray | torch.Tensor (z, h, w, c)
                 }
                 Each key in the dictionary corresponds to levels of variables, and the values
                 are numpy arrays containing the variables stacked along the specified axis.
@@ -84,8 +86,7 @@ class CustomDataset(Dataset):
         # via traversing data_list, the levels/vars are in the the same order as the
         # order in `config/data/data_config.yaml`
         for data_compose in self._data_list:
-            sub_dir_path = gen_path(dt, data_compose)
-            data = read_cwa_npfile(sub_dir_path, data_compose.is_radar)
+            data = gen_data(dt, data_compose)
             pre_output[data_compose.level].append(data)
 
         # concatenate by variable, group by level
@@ -105,6 +106,8 @@ class CustomDataset(Dataset):
         for key, value in output.items():
             final[key] = np.stack(value, axis=0)  # {'upper_air': (lv, h, w, c), ...}
             self._data_shape_check(dt, final[key])
+            if to_tensor:
+                final[key] = torch.from_numpy(final[key])
 
         return final
 

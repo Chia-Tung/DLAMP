@@ -95,6 +95,7 @@ class PanguBuilder(BaseBuilder):
             fast_dev_run=False,  # use n batch(es) to fast run through train/valid
             logger=logger,
             check_val_every_n_epoch=1,
+            log_every_n_steps=None,
             max_epochs=self.kwargs.max_epochs,
             limit_train_batches=None,
             limit_val_batches=None,
@@ -106,7 +107,9 @@ class PanguBuilder(BaseBuilder):
                 EarlyStopping(monitor="val_loss_epoch", patience=50),
                 self.checkpoint_callback(),
             ],
-            profiler=PyTorchProfiler(dirpath="./profiler", filename="pytorch_profile"),
+            profiler=PyTorchProfiler(
+                dirpath="./profiler", filename=f"{self.__class__.__name__}"
+            ),
         )
 
     def checkpoint_callback(self) -> ModelCheckpoint:
@@ -115,7 +118,7 @@ class PanguBuilder(BaseBuilder):
             filename=self.kwargs.model_name
             + f"_{self.time_stamp}"
             + "-{epoch:03d}-{val_loss_epoch:.4f}",
-            save_top_k=3,
+            save_top_k=1,
             verbose=True,
             monitor="val_loss_epoch",
             mode="min",
@@ -125,7 +128,7 @@ class PanguBuilder(BaseBuilder):
         Path(save_dir).mkdir(parents=True, exist_ok=True)
         return WandbLogger(
             save_dir=save_dir,
-            log_model=False, # log W&B artifacts
+            log_model=False,  # log W&B artifacts
             project="my-awesome-project",
             name=self.kwargs.model_name + f"_{self.time_stamp}",
         )

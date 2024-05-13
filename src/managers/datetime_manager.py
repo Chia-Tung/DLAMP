@@ -35,7 +35,7 @@ class DatetimeManager:
         self.train_time: set[datetime] = set()
         self.valid_time: set[datetime] = set()
         self.test_time: set[datetime] = set()
-        self.blacklist: set[datetime] = set()
+        self.eval_case_list: set[datetime] = set()
         self._done = False
 
     def build_initial_time_list(self, data_list: list[DataCompose]) -> DatetimeManager:
@@ -101,8 +101,8 @@ class DatetimeManager:
 
     def _quick_build_init_time_list(self) -> None:
         """
-        Builds the initial time list based on the start and end times. Datetimes that are in the 
-        blacklist are excluded from the time list. 
+        Builds the initial time list based on the start and end times. Datetimes that are in the
+        blacklist are excluded from the time list.
         """
         s = time.time()
 
@@ -180,7 +180,7 @@ class DatetimeManager:
         log.debug(f"test_time size (original): {len(self.test_time)}")
         return self
 
-    def build_blacklist(self) -> DatetimeManager:
+    def build_eval_case_list(self) -> DatetimeManager:
         """
         Remove evaluation cases from the training set.
 
@@ -211,12 +211,16 @@ class DatetimeManager:
         s = time.time()
         for key, value in EVAL_CASES.items():
             if key == "one_day":
-                self.blacklist |= set(get_datetime_list(value, TimeUtil.entire_period))
+                self.eval_case_list |= set(
+                    get_datetime_list(value, TimeUtil.entire_period)
+                )
             elif key == "three_days":
-                self.blacklist |= set(get_datetime_list(value, TimeUtil.three_days))
+                self.eval_case_list |= set(
+                    get_datetime_list(value, TimeUtil.three_days)
+                )
 
-        log.debug(f"{self.BC} Built blacklist in {time.time() - s:.5f} sec.")
-        log.debug(f"Blacklist size: {len(self.blacklist)}")
+        log.debug(f"{self.BC} Built eval case list in {time.time() - s:.5f} sec.")
+        log.debug(f"eval case list size: {len(self.eval_case_list)}")
         return self
 
     def _sanity_check(self, dt: datetime, data_list: list[DataCompose]) -> bool:
@@ -250,14 +254,14 @@ class DatetimeManager:
 
         def fn(name: str) -> None:
             dataset = getattr(self, f"{name}_time")
-            clashes = dataset & self.blacklist
+            clashes = dataset & self.eval_case_list
 
             for dt in clashes:
                 dataset.remove(dt)
                 self.test_time.add(dt)
                 while True:
                     swap_dt = random.choice(list(self.test_time))
-                    if swap_dt not in self.blacklist:
+                    if swap_dt not in self.eval_case_list:
                         self.test_time.remove(swap_dt)
                         dataset.add(swap_dt)
                         break
