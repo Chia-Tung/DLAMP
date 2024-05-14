@@ -5,6 +5,8 @@ import numpy as np
 
 from src.const import FIGURE_PATH, WSP_COLOR, WSP_LV
 from src.utils import gen_data
+from src.utils.data_compose import DataCompose
+from src.utils.data_type import DataType, Level
 
 from .tw_background import TwBackground
 
@@ -35,7 +37,10 @@ class VizWind(TwBackground):
             colors=WSP_COLOR,
             zorder=0,
         )
-        ax.streamplot(lon, lat, u_wind, v_wind, zorder=0, color="C0")
+        # since lat/lon is not monotonically increasing in a same pace
+        lat_1d = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
+        lon_1d = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
+        ax.streamplot(lon_1d, lat_1d, u_wind, v_wind, zorder=0, color='k')
 
         # colorbar
         cbar = fig.colorbar(conf, ax=ax)
@@ -45,11 +50,12 @@ class VizWind(TwBackground):
 
 
 if __name__ == "__main__":
-    target_time = datetime(2022, 10, 1, 0)
-    u850 = gen_data(target_time, {"var": "U", "lv": "Hpa850"})
-    v850 = gen_data(target_time, {"var": "V", "lv": "Hpa850"})
-    data_lat = gen_data(target_time, {"var": "Lat", "lv": "Surface"})
-    data_lon = gen_data(target_time, {"var": "Lon", "lv": "Surface"})
+    # `export PYTHONPATH=$PYTHONPATH:/wk171/handsomedong/DLAMP` in CLI
+    target_time = datetime(2022, 9, 3, 0)
+    u850 = gen_data(target_time, DataCompose(DataType.U, Level.Hpa850))
+    v850 = gen_data(target_time, DataCompose(DataType.V, Level.Hpa850))
+    data_lat = gen_data(target_time, DataCompose(DataType.Lat, Level.Surface))
+    data_lon = gen_data(target_time, DataCompose(DataType.Lon, Level.Surface))
 
     viz = VizWind()
     fig, ax = viz.plot(data_lon, data_lat, u850, v850)
