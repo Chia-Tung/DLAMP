@@ -16,6 +16,7 @@ from torchvision.transforms.v2 import CenterCrop, Resize, ToDtype
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
 from .. import PanguModel
+from ..callbacks import LogPredictionSamplesCallback
 from ..lightning_modules import PanguLightningModule
 from .base_builder import BaseBuilder
 
@@ -92,19 +93,22 @@ class PanguBuilder(BaseBuilder):
         return Trainer(
             num_sanity_val_steps=2,
             benchmark=True,
-            fast_dev_run=False,  # use n batch(es) to fast run through train/valid
+            fast_dev_run=self.kwargs.fast_dev_run,  # use n batch(es) to fast run through train/valid, no logging, no checkpoint, no max_epoch
             logger=logger,
             check_val_every_n_epoch=1,
             log_every_n_steps=None,
             max_epochs=self.kwargs.max_epochs,
-            limit_train_batches=None,
-            limit_val_batches=None,
+            limit_train_batches=self.kwargs.limit_train_batches,
+            limit_val_batches=self.kwargs.limit_val_batches,
             accelerator="gpu",
             devices=[i for i in range(num_gpus)],
             strategy="auto" if num_gpus <= 1 else "ddp",
             callbacks=[
                 LearningRateMonitor(),
-                EarlyStopping(monitor="val_loss_epoch", patience=50),
+                LogPredictionSamplesCallback(),
+                EarlyStopping(
+                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
+                ),
                 self.checkpoint_callback(),
             ],
             profiler=PyTorchProfiler(
