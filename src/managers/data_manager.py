@@ -3,8 +3,8 @@ import logging
 import lightning as L
 from torch.utils.data import DataLoader, RandomSampler
 
-from ..utils import DataCompose
 from ..datasets import CustomDataset
+from ..utils import DataCompose, DataGenerator
 from .datetime_manager import DatetimeManager
 
 log = logging.getLogger(__name__)
@@ -29,6 +29,9 @@ class DataManager(L.LightningDataModule):
             kwargs["format"],
             kwargs["time_interval"],
         )
+        self.data_gnrt = DataGenerator(kwargs["data_shape"], kwargs["image_shape"])
+
+        # flags
         self._already_called: dict[str, bool] = {}
         for stage in ("fit", "validate", "test", "predict"):
             self._already_called[stage] = False
@@ -110,7 +113,7 @@ class DataManager(L.LightningDataModule):
             self.hparams.output_len,
             getattr(self.hparams, "input_itv", {"hours": 1}),
             getattr(self.hparams, "output_itv", {"hours": 1}),
-            self.hparams.data_shape,
+            self.data_gnrt,
             self.hparams.sampling_rate,
             ordered_time,
             self.data_list,

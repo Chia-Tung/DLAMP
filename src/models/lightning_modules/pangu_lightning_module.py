@@ -10,10 +10,9 @@ __all__ = ["PanguLightningModule"]
 
 # TODO: weighted MAE loss
 class PanguLightningModule(L.LightningModule):
-    def __init__(self, *, preprocess_layer, backbone_model, **kwargs):
+    def __init__(self, *, backbone_model, **kwargs):
         super().__init__()
-        self.save_hyperparameters(ignore=["preprocess_layer", "backbone_model"])
-        self.preprocess_layer: nn.Module = preprocess_layer
+        self.save_hyperparameters(ignore=["backbone_model"])
         self.backbone_model: nn.Module = backbone_model
 
         if kwargs["upper_var_weights"] is None or kwargs["surface_var_weights"] is None:
@@ -71,8 +70,6 @@ class PanguLightningModule(L.LightningModule):
                     }
         """
         # all data in the shape of (B, Z, H, W, C)
-        inp_data = self.preprocess(inp_data)
-        target = self.preprocess(target)
         oup_upper, oup_surface = self(inp_data["upper_air"], inp_data["surface"])
         if self.weighted_loss:
             raise NotImplementedError("WeightedMAE not implemented")
@@ -122,12 +119,6 @@ class PanguLightningModule(L.LightningModule):
     #     )
     #     norms.pop("grad_2.0_norm_total")
     #     self.log_dict(norms, on_step=True)
-
-    def preprocess(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        new_data = {}
-        for key, tensor in data.items():
-            new_data[key] = self.preprocess_layer(tensor)
-        return new_data
 
     def log_mae_for_each_element(
         self, prefix: str, lv_names: list[str], var_names: list[str], mae: torch.Tensor
