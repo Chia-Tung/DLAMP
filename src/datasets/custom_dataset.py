@@ -5,8 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .data_compose import DataCompose
-from .file_util import gen_data
+from ..utils import DataCompose, gen_data
 
 
 class CustomDataset(Dataset):

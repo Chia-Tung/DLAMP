@@ -16,6 +16,11 @@ class VizWind(TwBackground):
     def plot(
         self, lon: np.ndarray, lat: np.ndarray, u_wind: np.ndarray, v_wind: np.ndarray
     ):
+        # since lat/lon may not be monotonically increasing in a same pace
+        if len(lat.shape) == 2 and len(lon.shape) == 2:
+            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
+            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
+
         fig, ax = super().plot_bg()
 
         # wind speed
@@ -30,10 +35,7 @@ class VizWind(TwBackground):
             colors=WSP_COLOR,
             zorder=0,
         )
-        # since lat/lon is not monotonically increasing in a same pace
-        lat_1d = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
-        lon_1d = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
-        ax.streamplot(lon_1d, lat_1d, u_wind, v_wind, zorder=0, color="C0")
+        ax.streamplot(lon, lat, u_wind, v_wind, zorder=0, color="C0")
 
         # colorbar
         cbar = fig.colorbar(conf, ax=ax)
