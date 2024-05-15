@@ -2,6 +2,8 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 from src.const import FIGURE_PATH, WSP_COLOR, WSP_LV
 from src.utils import DataCompose, DataType, Level, gen_data
 
@@ -9,11 +11,18 @@ from .tw_background import TwBackground
 
 
 class VizWind(TwBackground):
-    def __init__(self):
+    def __init__(self, pressure_level: int):
         super().__init__()
+        self.press_lv = pressure_level
+        self.title_suffix = f"_wind_speed@{self.press_lv}hpa"
 
     def plot(
-        self, lon: np.ndarray, lat: np.ndarray, u_wind: np.ndarray, v_wind: np.ndarray
+        self,
+        lon: np.ndarray,
+        lat: np.ndarray,
+        u_wind: np.ndarray,
+        v_wind: np.ndarray,
+        title: str = "",
     ):
         # since lat/lon may not be monotonically increasing in a same pace
         if len(lat.shape) == 2 and len(lon.shape) == 2:
@@ -35,10 +44,16 @@ class VizWind(TwBackground):
             zorder=0,
         )
         ax.streamplot(lon, lat, u_wind, v_wind, zorder=0, color="C0")
+        if title:
+            ax.set_title(title + self.title_suffix)
+
+        # create an axes on the right side of ax. The width of cax will be 5%
+        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
 
         # colorbar
-        cbar = fig.colorbar(conf, ax=ax)
-        cbar.ax.set_title("speed")
+        cbar = fig.colorbar(conf, cax=cax)
 
         return fig, ax
 

@@ -1,0 +1,25 @@
+hydra:
+  run:  
+    dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S}
+  job:
+    chdir: False
+  output_subdir: .hydra
+  job_logging:
+    root:
+      level: DEBUG
+    handlers:
+      console:
+        level: INFO
+      file:
+        level: DEBUG
+
+lightning:
+  sampling_rate: 1
+  batch_size: 16
+
+defaults:
+  - data: dlamp_train
+  - lightning: dlamp_train
+  - model: dlamp_train
+  - _self_
+  - override hydra/job_logging: default # default/disabled/custom

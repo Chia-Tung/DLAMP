@@ -180,7 +180,7 @@ class DatetimeManager:
         log.debug(f"test_time size (original): {len(self.test_time)}")
         return self
 
-    def build_eval_case_list(self) -> DatetimeManager:
+    def build_eval_case_list(self, data_list: list[DataCompose]) -> DatetimeManager:
         """
         Remove evaluation cases from the training set.
 
@@ -209,16 +209,21 @@ class DatetimeManager:
             return ret
 
         s = time.time()
+        eval_case_set = set()
         for key, value in EVAL_CASES.items():
             if key == "one_day":
-                self.eval_case_list |= set(
-                    get_datetime_list(value, TimeUtil.entire_period)
-                )
+                eval_case_set |= set(get_datetime_list(value, TimeUtil.entire_period))
             elif key == "three_days":
-                self.eval_case_list |= set(
-                    get_datetime_list(value, TimeUtil.three_days)
-                )
+                eval_case_set |= set(get_datetime_list(value, TimeUtil.three_days))
 
+        remove = 0
+        for dt in tqdm(eval_case_set, desc="Eval cases sanity check..."):
+            if self._sanity_check(dt, data_list):
+                self.eval_case_list.add(dt)
+            else:
+                remove += 1
+
+        log.info(f"Removed {remove} eval cases during eval case sanity check.")
         log.debug(f"{self.BC} Built eval case list in {time.time() - s:.5f} sec.")
         log.debug(f"eval case list size: {len(self.eval_case_list)}")
         return self
@@ -285,6 +290,10 @@ class DatetimeManager:
     @property
     def ordered_test_time(self) -> list[datetime]:
         return sorted(self.test_time)
+
+    @property
+    def ordered_predict_time(self) -> list[datetime]:
+        return sorted(self.eval_case_list)
 
     @property
     def is_done(self) -> bool:

@@ -95,7 +95,6 @@ class CustomDataset(Dataset):
                 output["surface"].append(value)
             else:
                 output["upper_air"].append(value)
-        del pre_output
 
         # concatenate by level
         # Warning: LightningModule doesn't support defaultdict as input/output

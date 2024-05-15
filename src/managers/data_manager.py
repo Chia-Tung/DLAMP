@@ -20,6 +20,7 @@ class DataManager(L.LightningDataModule):
         self._train_dataset = None
         self._valid_dataset = None
         self._test_dataset = None
+        self._predict_dataset = None
         self._train_sampler = None
 
         # assistants
@@ -60,7 +61,7 @@ class DataManager(L.LightningDataModule):
         if not self.dtm.is_done:
             self.dtm.build_initial_time_list(self.data_list).random_split(
                 **self.hparams.split_config
-            ).build_eval_case_list().swap_eval_cases_from_train_valid()
+            ).build_eval_case_list(self.data_list).swap_eval_cases_from_train_valid()
             self.dtm.is_done = True
 
         match stage:
@@ -77,7 +78,7 @@ class DataManager(L.LightningDataModule):
             case "test":
                 self._test_dataset = self._setup("test")
             case "predict":
-                raise NotImplementedError()
+                self._predict_dataset = self._setup("predict")
             case _:
                 log.error(f"Invalid stage: {stage}")
                 raise ValueError(f"Invalid stage: {stage}")
@@ -150,6 +151,18 @@ class DataManager(L.LightningDataModule):
         """
         return DataLoader(
             dataset=self._test_dataset,
+            shuffle=False,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.workers,
+            drop_last=False,
+        )
+
+    def predict_dataloader(self):
+        """
+        sampler and shuffle can not exist at the same time
+        """
+        return DataLoader(
+            dataset=self._predict_dataset,
             shuffle=False,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.workers,

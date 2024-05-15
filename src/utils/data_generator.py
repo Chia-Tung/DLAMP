@@ -29,7 +29,7 @@ class DataGenerator:
 
             Parameters:
                 target_time (datetime): The target time for data processing.
-                data_compose (DataCompose | dict[str, str]): The data compose object or a dictionary.
+                data_compose (DataCompose | dict[str, list[str]]): The data compose object or a dictionary.
                     The dictionary should have the following structure:
                         {
                             "GeoHeight": ["Hpa200", "Hpa500", "Hpa700", "Hpa850", "Hpa925"],

@@ -110,6 +110,18 @@ class PanguLightningModule(L.LightningModule):
         )
         return loss
 
+    def predict_step(self, batch, batch_idx):
+        inp_data, target = batch
+        oup_upper, oup_surface = self(inp_data["upper_air"], inp_data["surface"])
+        return (
+            inp_data["upper_air"],
+            inp_data["surface"],
+            target["upper_air"],
+            target["surface"],
+            oup_upper,
+            oup_surface,
+        )
+
     # Compute the 2-norm for each layer
     # If using mixed precision, the gradients are already unscaled here
     # def on_before_optimizer_step(self, optimizer):

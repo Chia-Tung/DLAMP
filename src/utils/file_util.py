@@ -97,12 +97,12 @@ def gen_path(target_time: datetime) -> Path:
     )
 
 
-def convert_hydra_dir_to_timestamp(hydra_dir: Path) -> str:
+def convert_hydra_dir_to_timestamp(hydra_dir: Path | str) -> str:
     """
-    Convert a directory path to a timestamp string.
+    Convert a directory path to a timestamp string. Or just return itself if it's in `str` type.
 
     Args:
-        hydra_dir (Path): The path to the hydra output directory.
+        hydra_dir (Path | str): The path to the hydra output directory.
 
     Returns:
         str: The timestamp string in the format "%y%m%d_%H%M%S".
@@ -110,7 +110,21 @@ def convert_hydra_dir_to_timestamp(hydra_dir: Path) -> str:
     Raises:
         ValueError: If the hydra directory path cannot be parsed into a datetime object.
     """
-    dt = datetime.strptime(
-        f"{hydra_dir.parent.name} {hydra_dir.name}", "%Y-%m-%d %H:%M:%S"
-    )
+    try:
+        dt = datetime.strptime(
+            f"{hydra_dir.parent.name} {hydra_dir.name}", "%Y-%m-%d %H:%M:%S"
+        )
+    except:
+        if isinstance(hydra_dir, str):
+            warnings.warn(
+                f'given hydra dir "{hydra_dir}" can\'t be parsed into datetime, '
+                f"return itself ({hydra_dir}) as timestamp",
+                UserWarning,
+            )
+            return hydra_dir
+        else:
+            raise ValueError(
+                f"given hydra dir {hydra_dir} can't be parsed into datetime"
+            )
+
     return dt.strftime("%y%m%d_%H%M%S")
