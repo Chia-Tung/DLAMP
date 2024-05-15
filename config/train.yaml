@@ -5,7 +5,7 @@ hydra:
     dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S} # where to save the logs
   job:
     chdir: False # whether to move to log folder
-  output_subdir: null # .hydra log dir name
+  output_subdir: .hydra # .hydra log dir name
   job_logging:
     root:
       level: DEBUG # 1st filter
@@ -19,6 +19,6 @@ hydra:
 defaults:
   - _self_
   - data: dlamp_train
-  - hparams: dlamp_train
+  - lightning: dlamp_train
   - model: dlamp_train
   - override hydra/job_logging: default # default/disabled/custom

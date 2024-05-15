@@ -4,11 +4,12 @@ import logging
 import random
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 from tqdm import tqdm
 
-from ..const import EVAL_CASES
+from ..const import BLACKLIST_PATH, EVAL_CASES
 from ..utils import DataCompose, TimeUtil, gen_path
 
 log = logging.getLogger(__name__)
@@ -27,29 +28,40 @@ class DatetimeManager:
         self.start_time = datetime.strptime(start_time, format)
         self.end_time = datetime.strptime(end_time, format)
         self.interval = timedelta(**interval)
+        self.format = format
 
         # internal property
         self.time_list: list[datetime] = list()
         self.train_time: set[datetime] = set()
         self.valid_time: set[datetime] = set()
         self.test_time: set[datetime] = set()
-        self.blacklist: set[datetime] = set()
+        self.eval_case_list: set[datetime] = set()
         self._done = False
 
     def build_initial_time_list(self, data_list: list[DataCompose]) -> DatetimeManager:
+        if not Path(BLACKLIST_PATH).exists():
+            self._build_init_time_list(data_list, save_output=True)
+        else:
+            self._quick_build_init_time_list()
+        return self
+
+    def _build_init_time_list(
+        self, data_list: list[DataCompose], save_output: bool
+    ) -> None:
         """
         Builds initial time list based on the start time and end time. Eliminates datetime which
         does not meet the sanity check for both current time and next time.
 
         Args:
             data_list (list[DataCompose]): The list of DataCompose objects.
+            save_output (bool): Whether to save the blacklist of initial time to a file.
 
         Returns:
-            DatetimeManager: The updated DatetimeManager object with the initial time list.
+            None
         """
         s = time.time()
+        remove = []
         skip_current: bool = False
-        num_remove = 0
         num_time = int((self.end_time - self.start_time) / self.interval) + 1
         pbar = tqdm(total=num_time, desc="Building initial time list...")
 
@@ -59,29 +71,60 @@ class DatetimeManager:
             next_time = current_time + self.interval
 
             if not self._sanity_check(next_time, data_list):
+                remove.extend([current_time, next_time])
                 current_time += 2 * self.interval
                 skip_current = False
                 pbar.update(2)
-                num_remove += 2
                 continue
 
             # skip checking current time if `skip_current = True`
             if not skip_current and not self._sanity_check(current_time, data_list):
+                remove.append(current_time)
                 current_time += self.interval
                 skip_current = True
                 pbar.update(1)
-                num_remove += 1
                 continue
 
             self.time_list.append(current_time)
             current_time += self.interval
             skip_current = True
             pbar.update(1)
-
         pbar.close()
-        log.info(f"Removed {num_remove} datetimes during data sanity check.")
+
+        if save_output:
+            with open(BLACKLIST_PATH, "w") as f:
+                for dt in remove:
+                    f.write(dt.strftime(self.format) + "\n")
+
+        log.info(f"Removed {len(remove)} datetimes during data sanity check.")
         log.debug(f"{self.BC} Built initial time list in {time.time() - s:.5f} sec.")
-        return self
+
+    def _quick_build_init_time_list(self) -> None:
+        """
+        Builds the initial time list based on the start and end times. Datetimes that are in the
+        blacklist are excluded from the time list.
+        """
+        s = time.time()
+
+        blacklist = []
+        with open(BLACKLIST_PATH, "r") as f:
+            for line in f:
+                dt = datetime.strptime(line.strip(), self.format)
+                blacklist.append(dt)
+
+        num_time = int((self.end_time - self.start_time) / self.interval) + 1
+        with tqdm(total=num_time) as pbar:
+            pbar.set_description("Building initial time list...")
+            current_time = self.start_time
+            pbar.update(1)
+            while current_time < self.end_time:
+                if current_time not in blacklist:
+                    self.time_list.append(current_time)
+                current_time += self.interval
+                pbar.update(1)
+
+        log.info(f"Removed {len(blacklist)} datetimes during data sanity check.")
+        log.debug(f"{self.BC} Built initial time list in {time.time() - s:.5f} sec.")
 
     def random_split(
         self, order_by_time: bool, ratios: list[float | int]
@@ -137,7 +180,7 @@ class DatetimeManager:
         log.debug(f"test_time size (original): {len(self.test_time)}")
         return self
 
-    def build_blacklist(self) -> DatetimeManager:
+    def build_eval_case_list(self) -> DatetimeManager:
         """
         Remove evaluation cases from the training set.
 
@@ -168,12 +211,16 @@ class DatetimeManager:
         s = time.time()
         for key, value in EVAL_CASES.items():
             if key == "one_day":
-                self.blacklist |= set(get_datetime_list(value, TimeUtil.entire_period))
+                self.eval_case_list |= set(
+                    get_datetime_list(value, TimeUtil.entire_period)
+                )
             elif key == "three_days":
-                self.blacklist |= set(get_datetime_list(value, TimeUtil.three_days))
+                self.eval_case_list |= set(
+                    get_datetime_list(value, TimeUtil.three_days)
+                )
 
-        log.debug(f"{self.BC} Built blacklist in {time.time() - s:.5f} sec.")
-        log.debug(f"Blacklist size: {len(self.blacklist)}")
+        log.debug(f"{self.BC} Built eval case list in {time.time() - s:.5f} sec.")
+        log.debug(f"eval case list size: {len(self.eval_case_list)}")
         return self
 
     def _sanity_check(self, dt: datetime, data_list: list[DataCompose]) -> bool:
@@ -207,14 +254,14 @@ class DatetimeManager:
 
         def fn(name: str) -> None:
             dataset = getattr(self, f"{name}_time")
-            clashes = dataset & self.blacklist
+            clashes = dataset & self.eval_case_list
 
             for dt in clashes:
                 dataset.remove(dt)
                 self.test_time.add(dt)
                 while True:
                     swap_dt = random.choice(list(self.test_time))
-                    if swap_dt not in self.blacklist:
+                    if swap_dt not in self.eval_case_list:
                         self.test_time.remove(swap_dt)
                         dataset.add(swap_dt)
                         break

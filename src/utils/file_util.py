@@ -1,3 +1,4 @@
+import warnings
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -36,10 +37,16 @@ def read_cwa_npfile(
     """
     data = np.fromfile(file_path, dtype=">d", count=-1, sep="").reshape(450, 450)
 
-    if is_radar and (np.all(data < 0.1) and np.all(np.log(data) > -10000)):
+    # since log(0) = -inf, log(neg) = nan, np.all() will always return False
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        log_data = np.log(data)
+    log_data = np.ma.array(log_data, mask=np.isnan(log_data) + np.isneginf(log_data))
+
+    if is_radar and (np.all(data < 0.1) and np.all(log_data > -10000)):
         data = np.fromfile(file_path, dtype="<d", count=-1, sep="").reshape(450, 450)
 
-    if (not is_radar) and np.all(np.log(data) < -500):
+    if (not is_radar) and np.all(log_data < -500):
         data = np.fromfile(file_path, dtype="<d", count=-1, sep="").reshape(450, 450)
 
     if dtype is not None:
@@ -85,3 +92,22 @@ def gen_path(target_time: datetime) -> Path:
         / f"rwf_{target_time.strftime('%Y%m')}"
         / f"{target_time.strftime('%Y%m%d%H%M')}0000"
     )
+
+
+def convert_hydra_dir_to_timestamp(hydra_dir: Path) -> str:
+    """
+    Convert a directory path to a timestamp string.
+
+    Args:
+        hydra_dir (Path): The path to the hydra output directory.
+
+    Returns:
+        str: The timestamp string in the format "%y%m%d_%H%M%S".
+
+    Raises:
+        ValueError: If the hydra directory path cannot be parsed into a datetime object.
+    """
+    dt = datetime.strptime(
+        f"{hydra_dir.parent.name} {hydra_dir.name}", "%Y-%m-%d %H:%M:%S"
+    )
+    return dt.strftime("%y%m%d_%H%M%S")

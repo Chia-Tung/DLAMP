@@ -3,10 +3,10 @@ input_len: 1
 output_len: 1
 split_config:
   ratios: [6, 2, 2]
-  order_by_time: True
+  order_by_time: False
 sampling_rate: 3
 batch_size: 4
-workers: 4
+workers: 8
 # LightningModule
 image_shape: [224, 224]
 surface_alpha: 0.25
@@ -21,4 +21,8 @@ lr_schedule:
     warmup_steps: 1000
 # lightning.Trainer
 num_gpus: null
+fast_dev_run: False
 max_epochs: 100
+limit_train_batches: null
+limit_val_batches: null
+early_stop_patience: 50

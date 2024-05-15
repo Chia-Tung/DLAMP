@@ -14,8 +14,9 @@ from lightning.pytorch.profilers import PyTorchProfiler
 from torchvision.transforms.v2 import CenterCrop, Resize, ToDtype
 
 from ...const import CHECKPOINT_DIR
-from ...utils import DataCompose
+from ...utils import DataCompose, convert_hydra_dir_to_timestamp
 from .. import PanguModel
+from ..callbacks import LogPredictionSamplesCallback
 from ..lightning_modules import PanguLightningModule
 from .base_builder import BaseBuilder
 
@@ -23,7 +24,7 @@ __all__ = ["PanguBuilder"]
 
 
 class PanguBuilder(BaseBuilder):
-    def __init__(self, data_list: list[DataCompose], **kwargs):
+    def __init__(self, hydra_dir: Path, data_list: list[DataCompose], **kwargs):
         super().__init__(**kwargs)
 
         self.pressure_levels: list[str] = DataCompose.get_all_levels(
@@ -35,6 +36,8 @@ class PanguBuilder(BaseBuilder):
         self.surface_vars: list[str] = DataCompose.get_all_vars(
             data_list, only_surface=True, to_str=True
         )
+
+        self.time_stamp = convert_hydra_dir_to_timestamp(hydra_dir)
 
         self.info_log(f"Input Image Shape: {self.kwargs.image_shape}")
         self.info_log(f"Patch Size: {self.kwargs.patch_size}")
@@ -80,7 +83,7 @@ class PanguBuilder(BaseBuilder):
             lr_schedule=self.kwargs.lr_schedule,
         )
 
-    def build_trainer(self) -> Trainer:
+    def build_trainer(self, logger) -> Trainer:
         num_gpus = (
             torch.cuda.device_count()
             if self.kwargs.num_gpus is None
@@ -90,28 +93,36 @@ class PanguBuilder(BaseBuilder):
         return Trainer(
             num_sanity_val_steps=2,
             benchmark=True,
-            fast_dev_run=False,  # use n batch(es) to fast run through train/valid
-            logger=self.wandb_logger(),
+            fast_dev_run=self.kwargs.fast_dev_run,  # use n batch(es) to fast run through train/valid, no logging, no checkpoint, no max_epoch
+            logger=logger,
             check_val_every_n_epoch=1,
+            log_every_n_steps=None,
             max_epochs=self.kwargs.max_epochs,
-            limit_train_batches=None,
-            limit_val_batches=None,
+            limit_train_batches=self.kwargs.limit_train_batches,
+            limit_val_batches=self.kwargs.limit_val_batches,
             accelerator="gpu",
             devices=[i for i in range(num_gpus)],
             strategy="auto" if num_gpus <= 1 else "ddp",
             callbacks=[
                 LearningRateMonitor(),
-                EarlyStopping(monitor="val_loss_epoch", patience=50),
+                LogPredictionSamplesCallback(),
+                EarlyStopping(
+                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
+                ),
                 self.checkpoint_callback(),
             ],
-            profiler=PyTorchProfiler(dirpath="./profiler", filename="pytorch_profile"),
+            profiler=PyTorchProfiler(
+                dirpath="./profiler", filename=f"{self.__class__.__name__}"
+            ),
         )
 
     def checkpoint_callback(self) -> ModelCheckpoint:
         return ModelCheckpoint(
             dirpath=CHECKPOINT_DIR,
-            filename=self.kwargs.model_name + "-{epoch:02d}-{val_loss_epoch:.6f}",
-            save_top_k=3,
+            filename=self.kwargs.model_name
+            + f"_{self.time_stamp}"
+            + "-{epoch:03d}-{val_loss_epoch:.4f}",
+            save_top_k=1,
             verbose=True,
             monitor="val_loss_epoch",
             mode="min",
@@ -121,7 +132,7 @@ class PanguBuilder(BaseBuilder):
         Path(save_dir).mkdir(parents=True, exist_ok=True)
         return WandbLogger(
             save_dir=save_dir,
-            log_model="all",
+            log_model=False,  # log W&B artifacts
             project="my-awesome-project",
-            name=self.kwargs.model_name,
+            name=self.kwargs.model_name + f"_{self.time_stamp}",
         )

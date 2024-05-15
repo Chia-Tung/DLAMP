@@ -15,6 +15,11 @@ class VizRadar(TwBackground):
         super().__init__()
 
     def plot(self, lon: np.ndarray, lat: np.ndarray, data: np.ndarray):
+        # since lat/lon may not be monotonically increasing in a same pace
+        if len(lat.shape) == 2 and len(lon.shape) == 2:
+            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
+            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
+
         fig, ax = super().plot_bg()
 
         # plot data

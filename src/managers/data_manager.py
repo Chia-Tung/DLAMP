@@ -3,7 +3,8 @@ import logging
 import lightning as L
 from torch.utils.data import DataLoader, RandomSampler
 
-from ..utils import CustomDataset, DataCompose
+from ..utils import DataCompose
+from ..datasets import CustomDataset
 from .datetime_manager import DatetimeManager
 
 log = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ class DataManager(L.LightningDataModule):
         if not self.dtm.is_done:
             self.dtm.build_initial_time_list(self.data_list).random_split(
                 **self.hparams.split_config
-            ).build_blacklist().swap_eval_cases_from_train_valid()
+            ).build_eval_case_list().swap_eval_cases_from_train_valid()
             self.dtm.is_done = True
 
         match stage:
