@@ -18,14 +18,14 @@ class VizVor(TwBackground):
         lat: np.ndarray,
         u_wind: np.ndarray,
         v_wind: np.ndarray,
-        grid_point_resolution: np.float32,
+        grid_point_resolution: np.ndarray,
     ):
         fig, ax = super().plot_bg()
 
         # calculate vorticity
-        vor_u = (u_wind[1:, :] - u_wind[0:-1, :]) / (grid_point_resolution * 1000)
+        vor_u = (u_wind[1:, :] - u_wind[0:-1, :]) / grid_point_resolution[1]
         vor_u = np.concatenate([vor_u[0:1, :], vor_u], axis=0)
-        vor_v = (v_wind[:, 1:] - v_wind[:, 0:-1]) / (grid_point_resolution * 1000)
+        vor_v = (v_wind[:, 1:] - v_wind[:, 0:-1]) / grid_point_resolution[0]
         vor_v = np.concatenate([vor_v[:, 0:1], vor_v], axis=1)
         vor = vor_v - vor_u
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     v850 = gen_data(target_time, DataCompose(DataType.V, Level.Hpa850))
     data_lat = gen_data(target_time, DataCompose(DataType.Lat, Level.Surface))
     data_lon = gen_data(target_time, DataCompose(DataType.Lon, Level.Surface))
-    grid_point_resolution = 2  # unit: km
+    grid_point_resolution = [2000, 2000]  # unit: m (for lon/lat)
 
     viz = VizVor()
     fig, ax = viz.plot(
