@@ -122,6 +122,17 @@ class PanguLightningModule(L.LightningModule):
             oup_surface,
         )
 
+    def get_product_mapping(self):
+        # check `self.predict_step()` for the order
+        return {
+            "input_upper": 0,
+            "input_sruface": 1,
+            "target_upper": 2,
+            "target_surface": 3,
+            "output_upper": 4,
+            "output_surface": 5,
+        }
+
     # Compute the 2-norm for each layer
     # If using mixed precision, the gradients are already unscaled here
     # def on_before_optimizer_step(self, optimizer):

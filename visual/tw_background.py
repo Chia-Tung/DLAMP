@@ -26,6 +26,7 @@ class TwBackground:
         Plots the county data on a figure
         """
         fig, ax = plt.subplots(1, 1, figsize=(7, 7), dpi=200, facecolor="w")
+        fig.tight_layout()
         ax = self.county_data.plot(
             ax=ax, color="none", edgecolor="k", linewidth=1, zorder=1
         )
@@ -38,6 +39,6 @@ class TwBackground:
 
         # default grid zorder is 2.5
         if grid_on:
-            ax.grid(True, linestyle="--", color='k', alpha=0.8)
+            ax.grid(True, linestyle="--", color="k", alpha=0.8)
 
         return fig, ax

@@ -14,7 +14,7 @@ class VizWind(TwBackground):
     def __init__(self, pressure_level: int):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"_wind_speed@{self.press_lv}hpa"
+        self.title_suffix = f"_wind_speed@{self.press_lv}"
 
     def plot(
         self,
