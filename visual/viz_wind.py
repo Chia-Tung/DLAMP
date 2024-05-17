@@ -34,7 +34,6 @@ class VizWind(TwBackground):
             colors=WSP_COLOR,
             zorder=0,
         )
-        # since lat/lon is not monotonically increasing in a same pace
         ax.streamplot(lon, lat, u_wind, v_wind, zorder=0, color="C0")
 
         # colorbar
