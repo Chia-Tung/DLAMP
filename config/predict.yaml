@@ -21,6 +21,7 @@ defaults:
   - data: rwrf
   - lightning: pangu_rwrf
   - model: pangu_rwrf
-  - plot: pangu_rwrf_1h_predict
+  - inference: pangu_rwrf_1h
+  - plot: pangu_rwrf
   - _self_
   - override hydra/job_logging: default # default/disabled/custom

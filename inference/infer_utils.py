@@ -5,7 +5,7 @@ import torch
 
 def prediction_postprocess(
     trainer_output: list[list[torch.Tensor]], mapping: dict[int, str]
-):
+) -> defaultdict[str, torch.Tensor]:
     """
     Perform post-processing on the trainer output predictions by combining all the batches.
 

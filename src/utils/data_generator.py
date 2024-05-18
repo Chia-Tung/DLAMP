@@ -17,7 +17,6 @@ class DataGenerator:
         self.preprocess = self._preprocess()
 
     def input_is_dict(fn: Callable) -> Callable:
-
         def wrapper(
             self,
             target_time: datetime,

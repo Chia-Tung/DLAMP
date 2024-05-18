@@ -12,7 +12,6 @@ class CustomDataset(Dataset):
         self,
         inp_len: int,
         oup_len: int,
-        inp_itv: dict[str, int],
         oup_itv: dict[str, int],
         data_generator: DataGenerator,
         sampling_rate: int,
@@ -23,7 +22,6 @@ class CustomDataset(Dataset):
         super().__init__()
         self._ilen = inp_len
         self._olen = oup_len
-        self._iitv = timedelta(**inp_itv)
         self._oitv = timedelta(**oup_itv)
         self._data_gnrt = data_generator
         self._sr = sampling_rate

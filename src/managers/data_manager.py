@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 import lightning as L
 from torch.utils.data import DataLoader, RandomSampler
@@ -11,12 +12,18 @@ log = logging.getLogger(__name__)
 
 
 class DataManager(L.LightningDataModule):
-    def __init__(self, data_list: list[DataCompose], **kwargs):
+    def __init__(
+        self,
+        data_list: list[DataCompose],
+        init_time_list: list[datetime] = None,
+        **kwargs,
+    ):
         super().__init__()
-        self.save_hyperparameters(ignore=["data_list", "train_data"])
+        self.save_hyperparameters(ignore=["data_list", "init_time_list", "train_data"])
 
         # internal property
         self.data_list = data_list
+        self.init_time_list = init_time_list
         self._train_dataset = None
         self._valid_dataset = None
         self._test_dataset = None
@@ -61,7 +68,7 @@ class DataManager(L.LightningDataModule):
         if not self.dtm.is_done:
             self.dtm.build_initial_time_list(self.data_list).random_split(
                 **self.hparams.split_config
-            ).build_eval_case_list(self.data_list).swap_eval_cases_from_train_valid()
+            ).build_eval_cases().swap_eval_cases_from_train_valid()
             self.dtm.is_done = True
 
         match stage:
@@ -107,12 +114,15 @@ class DataManager(L.LightningDataModule):
         Returns:
             CustomDataset: The subclass of `torch.utils.data.Dataset`.
         """
-        ordered_time = getattr(self.dtm, f"ordered_{stage}_time")
+        ordered_time = (
+            sorted(self.init_time_list)
+            if stage in ["test", "predict"] and self.init_time_list is not None
+            else getattr(self.dtm, f"ordered_{stage}_time")
+        )
 
         return CustomDataset(
             self.hparams.input_len,
             self.hparams.output_len,
-            getattr(self.hparams, "input_itv", {"hours": 1}),
             getattr(self.hparams, "output_itv", {"hours": 1}),
             self.data_gnrt,
             self.hparams.sampling_rate,

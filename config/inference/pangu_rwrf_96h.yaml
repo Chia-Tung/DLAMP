@@ -1,0 +1,3 @@
+best_ckpt: "./checkpoints/Pangu_240514_002602-epoch=045-val_loss_epoch=2.9630.ckpt"
+output_itv:
+  hours: 96

@@ -1,1 +1,1 @@
-from .infer_utils import *
+from .batch_inference import *
