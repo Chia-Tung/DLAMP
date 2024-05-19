@@ -101,3 +101,19 @@ class CustomDataset(Dataset):
             final[key] = np.stack(value, axis=0)  # {'upper_air': (lv, h, w, c), ...}
 
         return final
+
+    def get_internal_index_from_dt(self, dt: datetime) -> int:
+        """
+        Given a datetime, this function returns the index.
+
+        If `_is_train` is True, the function returns the index directly.
+        Otherwise, it returns the index divided by `_sr`.
+
+        Parameters:
+            dt (datetime): The datetime object to find the index for.
+
+        Returns:
+            int: The index of the datetime object in the `_init_time_list` attribute.
+        """
+        idx = self._init_time_list.index(dt)
+        return idx if self._is_train else idx // self._sr

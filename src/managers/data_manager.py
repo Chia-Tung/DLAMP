@@ -15,7 +15,7 @@ class DataManager(L.LightningDataModule):
     def __init__(
         self,
         data_list: list[DataCompose],
-        init_time_list: list[datetime] = None,
+        init_time_list: list[datetime] | None = None,
         **kwargs,
     ):
         super().__init__()

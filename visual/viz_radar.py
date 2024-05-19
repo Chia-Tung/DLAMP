@@ -60,6 +60,34 @@ class VizRadar(TwBackground):
 
         return fig, ax
 
+    def plot_mxn(
+        self,
+        lon: np.ndarray,
+        lat: np.ndarray,
+        ground_truth: np.ndarray,
+        prediction: np.ndarray,
+        all_init_times: list[datetime],
+    ):
+        """
+        Args:
+            lon (np.ndarray): The longitude data with shape (H, W).
+            lat (np.ndarray): The latitude data with shape (H, W).
+            ground_truth (np.ndarray): The ground truth data with shape (S, H, W).
+            prediction (np.ndarray): The predicted data with shape (S, H, W).
+            all_init_times (list[datetime]): A list of all initial times in length S.
+        """
+        assert len(ground_truth.shape) == 3
+        assert ground_truth.shape[-2:] == lat.shape
+        assert len(all_init_times) == ground_truth.shape[0]
+
+        rows = 2  # gt/pred
+        columns = len(all_init_times)
+        fig, ax = plt.subplots(rows, columns, figsize=(7, 14), dpi=200, facecolor="w")
+
+        # how to plot multiple subplots
+
+        return fig, ax
+
 
 if __name__ == "__main__":
     target_time = datetime(2022, 10, 16, 0)

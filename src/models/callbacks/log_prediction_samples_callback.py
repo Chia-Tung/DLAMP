@@ -25,21 +25,20 @@ class LogPredictionSamplesCallback(Callback):
             return
 
         # load axis
-        data_gnrt: DataGenerator = trainer.datamodule.data_gnrt
+        custom_dataset: CustomDataset = trainer.val_dataloaders.dataset
+        data_gnrt: DataGenerator = custom_dataset._data_gnrt
         self.data_lat, self.data_lon = data_gnrt.yield_data(
             datetime(2022, 10, 1, 0), {"Lat": ["NoRule"], "Lon": ["NoRule"]}
         )
 
         # choose cases from `src.const.EVAL_CASES`
         cases = [datetime(2022, 9, 12), datetime(2022, 10, 16)]
-        custom_dataset: CustomDataset = trainer.val_dataloaders.dataset
-
         self.fig_inputs = []
         self.fig_targets = []
         for case in cases:
             # (lv, H, W, C)
-            input = custom_dataset._get_variables_from_dt(case)
-            target = custom_dataset._get_variables_from_dt(case + timedelta(hours=1))
+            internal_idx = custom_dataset.get_internal_index_from_dt(case)
+            input, target = custom_dataset[internal_idx]
             # (1, lv, H, W, C)
             for k in input.keys():
                 input[k] = torch.from_numpy(input[k][None]).cuda()
