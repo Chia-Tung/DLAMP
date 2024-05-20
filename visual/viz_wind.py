@@ -2,9 +2,8 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from src.const import FIGURE_PATH, WSP_COLOR, WSP_LV
-from src.utils import gen_data
+from src.utils import DataCompose, DataType, Level, gen_data
 
 from .tw_background import TwBackground
 
@@ -45,11 +44,11 @@ class VizWind(TwBackground):
 
 
 if __name__ == "__main__":
-    target_time = datetime(2022, 10, 1, 0)
-    u850 = gen_data(target_time, {"var": "U", "lv": "Hpa850"})
-    v850 = gen_data(target_time, {"var": "V", "lv": "Hpa850"})
-    data_lat = gen_data(target_time, {"var": "Lat", "lv": "Surface"})
-    data_lon = gen_data(target_time, {"var": "Lon", "lv": "Surface"})
+    target_time = datetime(2022, 10, 16, 0)
+    u850 = gen_data(target_time, DataCompose(DataType.U, Level.Hpa850))
+    v850 = gen_data(target_time, DataCompose(DataType.V, Level.Hpa850))
+    data_lat = gen_data(target_time, DataCompose(DataType.Lat, Level.Surface))
+    data_lon = gen_data(target_time, DataCompose(DataType.Lon, Level.Surface))
 
     viz = VizWind()
     fig, ax = viz.plot(data_lon, data_lat, u850, v850)

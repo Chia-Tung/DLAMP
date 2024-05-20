@@ -3,9 +3,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import cm
-
 from src.const import DBZ_COLOR, DBZ_LV, DBZ_NORM, FIGURE_PATH
-from src.utils import gen_data
+from src.utils import DataCompose, DataType, Level, gen_data
 
 from .tw_background import TwBackground
 
@@ -46,10 +45,10 @@ class VizRadar(TwBackground):
 
 
 if __name__ == "__main__":
-    target_time = datetime(2022, 10, 1, 0)
-    data_radar = gen_data(target_time, {"var": "Radar", "lv": "NoRule"})
-    data_lat = gen_data(target_time, {"var": "Lat", "lv": "Surface"})
-    data_lon = gen_data(target_time, {"var": "Lon", "lv": "Surface"})
+    target_time = datetime(2022, 10, 16, 0)
+    data_radar = gen_data(target_time, DataCompose(DataType.Radar, Level.NoRule))
+    data_lat = gen_data(target_time, DataCompose(DataType.Lat, Level.Surface))
+    data_lon = gen_data(target_time, DataCompose(DataType.Lon, Level.Surface))
 
     viz = VizRadar()
     fig, ax = viz.plot(data_lon, data_lat, data_radar)
