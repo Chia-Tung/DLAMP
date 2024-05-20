@@ -18,7 +18,7 @@ class VizVor(TwBackground):
         lat: np.ndarray,
         u_wind: np.ndarray,
         v_wind: np.ndarray,
-        grid_point_resolution: np.ndarray,
+        grid_point_resolution: list[int],
     ):
         fig, ax = super().plot_bg()
 
