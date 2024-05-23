@@ -31,13 +31,12 @@ def main(cfg: DictConfig) -> None:
     for eval_case in tqdm(eval_cases, desc="Plot radar figures"):
         all_init_times = infer_machine.showcase_init_time_list(eval_case)
         gt, pred = infer_machine.get_figure_materials(eval_case, data_compose)
-        fig, ax = radar_painter.plot_mxn(lat, lon, gt, pred, all_init_times)
-        print(gt.shape, pred.shape) # (5, 224, 224)
-        # fig.savefig(
-        #     f"./gallery/radar_{product_type}_{target_time.strftime('%Y%m%d_%H%M')}.png",
-        #     transparent=False,
-        # )
-        # plt.close()
+        fig, ax = radar_painter.plot_mxn(lon, lat, gt, pred, grid_on=True)
+        fig.savefig(
+            f"./gallery/{data_compose}_{eval_case.strftime('%Y%m%d_%H%M')}.png",
+            transparent=False,
+        )
+        plt.close()
 
     # plot wind 850
     u_compose, v_compose = DataCompose.from_config({"U": ["Hpa850"], "V": ["Hpa850"]})
@@ -46,15 +45,12 @@ def main(cfg: DictConfig) -> None:
         all_init_times = infer_machine.showcase_init_time_list(eval_case)
         gt_u, pred_u = infer_machine.get_figure_materials(eval_case, u_compose)
         gt_v, pred_v = infer_machine.get_figure_materials(eval_case, v_compose)
-        # fig, ax = wind_painter.plot_mxn(
-        #     lat, lon, gt_u, pred_u, gt_v, pred_v, all_init_times
-        # )
-        print(gt_u.shape, pred_u.shape) # (5, 224, 224)
-        # fig.savefig(
-        #     f"./gallery/radar_{product_type}_{target_time.strftime('%Y%m%d_%H%M')}.png",
-        #     transparent=False,
-        # )
-        # plt.close()
+        fig, ax = wind_painter.plot_mxn(lon, lat, gt_u, gt_v, pred_u, pred_v)
+        fig.savefig(
+            f"./gallery/{u_compose}_{eval_case.strftime('%Y%m%d_%H%M')}.png",
+            transparent=False,
+        )
+        plt.close()
 
 
 if __name__ == "__main__":

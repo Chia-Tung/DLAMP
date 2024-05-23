@@ -32,6 +32,9 @@ class DataCompose:
         self.sub_dir_name = f"{self.level}{self.var_name}{VAR_SUFFIX}"
         self.is_radar = self.var_name == DataType.Radar
 
+    def __str__(self) -> str:
+        return f"{self.var_name.name}@{self.level.name}"
+
     @classmethod
     def from_config(cls, config: dict[str, list[str]]) -> list[DataCompose]:
         """

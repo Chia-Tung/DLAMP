@@ -25,7 +25,7 @@ class LogPredictionSamplesCallback(Callback):
             return
 
         # load axis
-        custom_dataset: CustomDataset = trainer.val_dataloaders.dataset
+        custom_dataset: CustomDataset = trainer.test_dataloaders.dataset
         data_gnrt: DataGenerator = custom_dataset._data_gnrt
         self.data_lat, self.data_lon = data_gnrt.yield_data(
             datetime(2022, 10, 1, 0), {"Lat": ["NoRule"], "Lon": ["NoRule"]}
@@ -61,8 +61,8 @@ class LogPredictionSamplesCallback(Callback):
             oup_surface = np.squeeze(oup_surface.cpu().numpy())  # (H, W)
             tag_surface = np.squeeze(target["surface"].cpu().numpy())  # (H, W)
 
-            fig_gt, _ = self.painter.plot(self.data_lon, self.data_lat, tag_surface)
-            fig_pd, _ = self.painter.plot(self.data_lon, self.data_lat, oup_surface)
+            fig_gt, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, tag_surface)
+            fig_pd, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, oup_surface)
 
             fig_gt_list.append(wandb.Image(fig_gt))
             fig_pd_list.append(wandb.Image(fig_pd))
