@@ -2,6 +2,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 from lightning.pytorch.utilities.grads import grad_norm
+from torch.utils.data import DataLoader
 
 from ..model_utils import get_scheduler_with_warmup
 
@@ -10,9 +11,10 @@ __all__ = ["PanguLightningModule"]
 
 # TODO: weighted MAE loss
 class PanguLightningModule(L.LightningModule):
-    def __init__(self, *, backbone_model, **kwargs):
+    def __init__(self, *, test_dataloader, backbone_model, **kwargs):
         super().__init__()
-        self.save_hyperparameters(ignore=["backbone_model"])
+        self.save_hyperparameters(ignore=["test_dataloader", "backbone_model"])
+        self._test_dataloader: DataLoader = test_dataloader
         self.backbone_model: nn.Module = backbone_model
 
         if kwargs["upper_var_weights"] is None or kwargs["surface_var_weights"] is None:
@@ -151,3 +153,13 @@ class PanguLightningModule(L.LightningModule):
                 self.log(
                     f"{prefix}_mae/{var}_{pl}", mae[i, j], on_step=True, on_epoch=False
                 )
+
+    def test_dataloader(self) -> DataLoader:
+        """
+        Load the test dataset from external `LightningDataModule`.
+
+        The reason doing so is that the `test_dataloader` is not accessible during
+        the `trainer.fit()` loop, but we need the `test_dataloader` to record the
+        images in `LogPredictionSamplesCallback`.
+        """
+        return self._test_dataloader

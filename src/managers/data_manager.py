@@ -80,7 +80,6 @@ class DataManager(L.LightningDataModule):
                     replacement=False,
                 )
                 self._valid_dataset = self._setup("valid")
-                self._test_dataset = self._setup("test")
             case "validate":
                 self._valid_dataset = self._setup("valid")
             case "test":

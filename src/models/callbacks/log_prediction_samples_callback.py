@@ -25,7 +25,7 @@ class LogPredictionSamplesCallback(Callback):
             return
 
         # load axis
-        custom_dataset: CustomDataset = trainer.test_dataloaders.dataset
+        custom_dataset: CustomDataset = pl_module.test_dataloader().dataset
         data_gnrt: DataGenerator = custom_dataset._data_gnrt
         self.data_lat, self.data_lon = data_gnrt.yield_data(
             datetime(2022, 10, 1, 0), {"Lat": ["NoRule"], "Lon": ["NoRule"]}

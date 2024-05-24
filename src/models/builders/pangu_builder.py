@@ -10,6 +10,7 @@ from lightning.pytorch.callbacks import (
 )
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.profilers import PyTorchProfiler
+from torch.utils.data import DataLoader
 
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
@@ -58,8 +59,9 @@ class PanguBuilder(BaseBuilder):
             const_mask_paths=self.kwargs.const_mask_paths,
         )
 
-    def build_model(self) -> LightningModule:
+    def build_model(self, test_dataloader: DataLoader) -> LightningModule:
         return PanguLightningModule(
+            test_dataloader=test_dataloader,
             backbone_model=self._backbone_model(),
             upper_var_weights=None,
             surface_var_weights=None,
