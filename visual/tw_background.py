@@ -1,30 +1,47 @@
 import geopandas as gpd
-import matplotlib.pyplot as plt
+import matplotlib as mpl
+import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from src.const import COUNTY_SHP_PATH
 
 
 class TwBackground:
     def __init__(self):
+        self.canvas_settings()
         self.county_data = gpd.read_file(COUNTY_SHP_PATH)
 
-    def plot_bg(self, rows=1, columns=1):
+    def canvas_settings(self) -> None:
+        font = {"family": "sans-serif", "weight": "bold", "size": 14}
+        axes = {
+            "titlesize": 16,
+            "titleweight": "bold",
+            "labelsize": 14,
+            "labelweight": "bold",
+        }
+        mpl.rc("font", **font)  # pass in the font dict as kwargs
+        mpl.rc("axes", **axes)
+
+    def plot_bg(
+        self, fig: Figure, ax: Axes, grid_on: bool = False
+    ) -> tuple[Figure, Axes]:
         """
         Plots the county data on a figure
-
-        Parameters:
-            rows (int): The number of rows in the plot grid. Defaults to 1.
-            columns (int): The number of columns in the plot grid. Defaults to 1.
-
-        Returns:
-            matplotlib.axes._subplots.AxesSubplot: The matplotlib subplot containing the plot.
         """
-        fig, ax = plt.subplots(1, 1, figsize=(7, 7), dpi=200, facecolor="w")
+        fig.tight_layout()
         ax = self.county_data.plot(
             ax=ax, color="none", edgecolor="k", linewidth=1, zorder=1
         )
 
         # canvas setting
-        ax.set_xlim(118, 123.5)
-        ax.set_ylim(20, 27)
+        # ax.set_xlim(118, 123.5) # QPESUMS
+        # ax.set_ylim(20, 27) # QPESUMS
+        ax.set_xlim(116, 125.7)  # RWRF
+        ax.set_ylim(19.4, 28)  # RWRF
+
+        # default grid zorder is 2.5
+        if grid_on:
+            ax.grid(True, linestyle="--", color="k", alpha=0.8)
+
         return fig, ax

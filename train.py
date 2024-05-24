@@ -28,12 +28,13 @@ def main(cfg: DictConfig) -> None:
     # prepare data
     data_list = DataCompose.from_config(cfg.data.train_data)
     data_manager = DataManager(data_list, **cfg.data, **cfg.lightning)
+    data_manager.setup("test")
 
     # model
     model_builder = get_builder(cfg.model.model_name)(
         hydra_oup_dir, data_list, **cfg.model, **cfg.lightning
     )
-    model = model_builder.build_model()
+    model = model_builder.build_model(data_manager.test_dataloader())
 
     # trainer
     wandb_logger = model_builder.wandb_logger()

@@ -35,7 +35,7 @@ class DatetimeManager:
         self.train_time: set[datetime] = set()
         self.valid_time: set[datetime] = set()
         self.test_time: set[datetime] = set()
-        self.eval_case_list: set[datetime] = set()
+        self.eval_cases: set[datetime] = set()
         self._done = False
 
     def build_initial_time_list(self, data_list: list[DataCompose]) -> DatetimeManager:
@@ -70,7 +70,7 @@ class DatetimeManager:
         while current_time < self.end_time:
             next_time = current_time + self.interval
 
-            if not self._sanity_check(next_time, data_list):
+            if not self.sanity_check(next_time, data_list):
                 remove.extend([current_time, next_time])
                 current_time += 2 * self.interval
                 skip_current = False
@@ -78,7 +78,7 @@ class DatetimeManager:
                 continue
 
             # skip checking current time if `skip_current = True`
-            if not skip_current and not self._sanity_check(current_time, data_list):
+            if not skip_current and not self.sanity_check(current_time, data_list):
                 remove.append(current_time)
                 current_time += self.interval
                 skip_current = True
@@ -180,12 +180,10 @@ class DatetimeManager:
         log.debug(f"test_time size (original): {len(self.test_time)}")
         return self
 
-    def build_eval_case_list(self) -> DatetimeManager:
+    def build_eval_cases(self) -> DatetimeManager:
         """
-        Remove evaluation cases from the training set.
-
-        Evaluation cases are defined in `src.const.EVAL_CASES`.
-        These cases are blacklisted from the training set.
+        Builds the evaluation cases from `src.const.EVAL_CASES`. Note that all evaluation cases
+        must have existed in the initial time list. These cases are blacklisted from the training set.
 
         Returns:
             DatetimeManager: The updated DatetimeManager object with the evaluation cases removed.
@@ -211,19 +209,17 @@ class DatetimeManager:
         s = time.time()
         for key, value in EVAL_CASES.items():
             if key == "one_day":
-                self.eval_case_list |= set(
-                    get_datetime_list(value, TimeUtil.entire_period)
-                )
+                self.eval_cases |= set(get_datetime_list(value, TimeUtil.entire_period))
             elif key == "three_days":
-                self.eval_case_list |= set(
-                    get_datetime_list(value, TimeUtil.three_days)
-                )
+                self.eval_cases |= set(get_datetime_list(value, TimeUtil.three_days))
 
+        self.eval_cases &= set(self.time_list)
         log.debug(f"{self.BC} Built eval case list in {time.time() - s:.5f} sec.")
-        log.debug(f"eval case list size: {len(self.eval_case_list)}")
+        log.debug(f"eval case list size: {len(self.eval_cases)}")
         return self
 
-    def _sanity_check(self, dt: datetime, data_list: list[DataCompose]) -> bool:
+    @staticmethod
+    def sanity_check(dt: datetime, data_list: list[DataCompose]) -> bool:
         """
         Check the sanity of the parent directory (../rwrf/rwf_201706/2017060100000000) regarding
         dt by verifying the existence of all target data files under this parent directory.
@@ -254,14 +250,14 @@ class DatetimeManager:
 
         def fn(name: str) -> None:
             dataset = getattr(self, f"{name}_time")
-            clashes = dataset & self.eval_case_list
+            clashes = dataset & self.eval_cases
 
             for dt in clashes:
                 dataset.remove(dt)
                 self.test_time.add(dt)
                 while True:
                     swap_dt = random.choice(list(self.test_time))
-                    if swap_dt not in self.eval_case_list:
+                    if swap_dt not in self.eval_cases:
                         self.test_time.remove(swap_dt)
                         dataset.add(swap_dt)
                         break
@@ -285,6 +281,10 @@ class DatetimeManager:
     @property
     def ordered_test_time(self) -> list[datetime]:
         return sorted(self.test_time)
+
+    @property
+    def ordered_predict_time(self) -> list[datetime]:
+        return sorted(self.eval_cases)
 
     @property
     def is_done(self) -> bool:

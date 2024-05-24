@@ -25,4 +25,4 @@ fast_dev_run: False
 max_epochs: 100
 limit_train_batches: null
 limit_val_batches: null
-early_stop_patience: 50
+early_stop_patience: 30

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from einops.layers.torch import Rearrange
 from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import (
     EarlyStopping,
@@ -11,7 +10,7 @@ from lightning.pytorch.callbacks import (
 )
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.profilers import PyTorchProfiler
-from torchvision.transforms.v2 import CenterCrop, Resize, ToDtype
+from torch.utils.data import DataLoader
 
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
@@ -43,15 +42,6 @@ class PanguBuilder(BaseBuilder):
         self.info_log(f"Patch Size: {self.kwargs.patch_size}")
         self.info_log(f"Window Size: {self.kwargs.window_size}")
 
-    def _preprocess_layer(self) -> nn.Module:
-        return nn.Sequential(
-            Rearrange("b z h w c -> b c z h w"),
-            CenterCrop([2 * x for x in self.kwargs.image_shape]),
-            Resize(self.kwargs.image_shape),
-            ToDtype(torch.float32),
-            Rearrange("b c z h w -> b z h w c"),
-        )
-
     def _backbone_model(self) -> nn.Module:
         return PanguModel(
             image_shape=self.kwargs.image_shape,
@@ -69,9 +59,9 @@ class PanguBuilder(BaseBuilder):
             const_mask_paths=self.kwargs.const_mask_paths,
         )
 
-    def build_model(self) -> LightningModule:
+    def build_model(self, test_dataloader: DataLoader) -> LightningModule:
         return PanguLightningModule(
-            preprocess_layer=self._preprocess_layer(),
+            test_dataloader=test_dataloader,
             backbone_model=self._backbone_model(),
             upper_var_weights=None,
             surface_var_weights=None,

@@ -9,20 +9,23 @@ from ..const import DATA_PATH
 from .data_compose import DataCompose
 
 
-def gen_data(target_time: datetime, data_compose: DataCompose):
+def gen_data(
+    target_time: datetime, data_compose: DataCompose, dtype: np.dtype | None = None
+) -> np.ndarray:
     """
-    Generate data for a given target time and data composition.
+    Generate numpy array data for a given target time and data composition.
 
     Args:
         target_time (datetime): The target time for which the data is generated.
         data_compose (DataCompose): The data composition object.
+        dtype (np.dtype | None, optional): The data type of the generated data. Defaults to None.
 
     Returns:
         The generated data.
 
     """
     file_dir = gen_path(target_time, data_compose)
-    return read_cwa_npfile(file_dir, data_compose.is_radar)
+    return read_cwa_npfile(file_dir, data_compose.is_radar, dtype)
 
 
 def read_cwa_npfile(
@@ -94,12 +97,12 @@ def gen_path(target_time: datetime) -> Path:
     )
 
 
-def convert_hydra_dir_to_timestamp(hydra_dir: Path) -> str:
+def convert_hydra_dir_to_timestamp(hydra_dir: Path | str) -> str:
     """
-    Convert a directory path to a timestamp string.
+    Convert a directory path to a timestamp string. Or just return itself if it's in `str` type.
 
     Args:
-        hydra_dir (Path): The path to the hydra output directory.
+        hydra_dir (Path | str): The path to the hydra output directory.
 
     Returns:
         str: The timestamp string in the format "%y%m%d_%H%M%S".
@@ -107,7 +110,21 @@ def convert_hydra_dir_to_timestamp(hydra_dir: Path) -> str:
     Raises:
         ValueError: If the hydra directory path cannot be parsed into a datetime object.
     """
-    dt = datetime.strptime(
-        f"{hydra_dir.parent.name} {hydra_dir.name}", "%Y-%m-%d %H:%M:%S"
-    )
+    try:
+        dt = datetime.strptime(
+            f"{hydra_dir.parent.name} {hydra_dir.name}", "%Y-%m-%d %H:%M:%S"
+        )
+    except:
+        if isinstance(hydra_dir, str):
+            warnings.warn(
+                f'given hydra dir "{hydra_dir}" can\'t be parsed into datetime, '
+                f"return itself ({hydra_dir}) as timestamp",
+                UserWarning,
+            )
+            return hydra_dir
+        else:
+            raise ValueError(
+                f"given hydra dir {hydra_dir} can't be parsed into datetime"
+            )
+
     return dt.strftime("%y%m%d_%H%M%S")

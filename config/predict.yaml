@@ -1,0 +1,27 @@
+hydra:
+  run:  
+    dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S}
+  job:
+    chdir: False
+  output_subdir: .hydra
+  job_logging:
+    root:
+      level: DEBUG
+    handlers:
+      console:
+        level: INFO
+      file:
+        level: DEBUG
+
+lightning:
+  sampling_rate: 1
+  batch_size: 16
+
+defaults:
+  - data: rwrf
+  - lightning: pangu_rwrf
+  - model: pangu_rwrf
+  - inference: pangu_rwrf_1h
+  - plot: pangu_rwrf
+  - _self_
+  - override hydra/job_logging: default # default/disabled/custom

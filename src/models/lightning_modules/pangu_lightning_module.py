@@ -2,6 +2,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 from lightning.pytorch.utilities.grads import grad_norm
+from torch.utils.data import DataLoader
 
 from ..model_utils import get_scheduler_with_warmup
 
@@ -10,10 +11,10 @@ __all__ = ["PanguLightningModule"]
 
 # TODO: weighted MAE loss
 class PanguLightningModule(L.LightningModule):
-    def __init__(self, *, preprocess_layer, backbone_model, **kwargs):
+    def __init__(self, *, test_dataloader, backbone_model, **kwargs):
         super().__init__()
-        self.save_hyperparameters(ignore=["preprocess_layer", "backbone_model"])
-        self.preprocess_layer: nn.Module = preprocess_layer
+        self.save_hyperparameters(ignore=["test_dataloader", "backbone_model"])
+        self._test_dataloader: DataLoader = test_dataloader
         self.backbone_model: nn.Module = backbone_model
 
         if kwargs["upper_var_weights"] is None or kwargs["surface_var_weights"] is None:
@@ -71,8 +72,6 @@ class PanguLightningModule(L.LightningModule):
                     }
         """
         # all data in the shape of (B, Z, H, W, C)
-        inp_data = self.preprocess(inp_data)
-        target = self.preprocess(target)
         oup_upper, oup_surface = self(inp_data["upper_air"], inp_data["surface"])
         if self.weighted_loss:
             raise NotImplementedError("WeightedMAE not implemented")
@@ -113,6 +112,29 @@ class PanguLightningModule(L.LightningModule):
         )
         return loss
 
+    def predict_step(self, batch, batch_idx):
+        inp_data, target = batch
+        oup_upper, oup_surface = self(inp_data["upper_air"], inp_data["surface"])
+        return (
+            inp_data["upper_air"],
+            inp_data["surface"],
+            target["upper_air"],
+            target["surface"],
+            oup_upper,
+            oup_surface,
+        )
+
+    def get_product_mapping(self):
+        # check `self.predict_step()` for the order
+        return {
+            "input_upper": 0,
+            "input_sruface": 1,
+            "target_upper": 2,
+            "target_surface": 3,
+            "output_upper": 4,
+            "output_surface": 5,
+        }
+
     # Compute the 2-norm for each layer
     # If using mixed precision, the gradients are already unscaled here
     # def on_before_optimizer_step(self, optimizer):
@@ -123,12 +145,6 @@ class PanguLightningModule(L.LightningModule):
     #     norms.pop("grad_2.0_norm_total")
     #     self.log_dict(norms, on_step=True)
 
-    def preprocess(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        new_data = {}
-        for key, tensor in data.items():
-            new_data[key] = self.preprocess_layer(tensor)
-        return new_data
-
     def log_mae_for_each_element(
         self, prefix: str, lv_names: list[str], var_names: list[str], mae: torch.Tensor
     ):
@@ -137,3 +153,13 @@ class PanguLightningModule(L.LightningModule):
                 self.log(
                     f"{prefix}_mae/{var}_{pl}", mae[i, j], on_step=True, on_epoch=False
                 )
+
+    def test_dataloader(self) -> DataLoader:
+        """
+        Load the test dataset from external `LightningDataModule`.
+
+        The reason doing so is that the `test_dataloader` is not accessible during
+        the `trainer.fit()` loop, but we need the `test_dataloader` to record the
+        images in `LogPredictionSamplesCallback`.
+        """
+        return self._test_dataloader
