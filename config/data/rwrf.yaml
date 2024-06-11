@@ -11,27 +11,23 @@ train_data:
     - Hpa700
     - Hpa850
     - Hpa925
-    - Hpa1000
   T:
     - Hpa200
     - Hpa500
     - Hpa700
     - Hpa850
     - Hpa925
-    - Hpa1000
   U:
     - Hpa200
     - Hpa500
     - Hpa700
     - Hpa850
     - Hpa925
-    - Hpa1000    
   V:
     - Hpa200
     - Hpa500
     - Hpa700
     - Hpa850
     - Hpa925
-    - Hpa1000
   Radar:
     - NoRule
