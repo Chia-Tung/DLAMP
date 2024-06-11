@@ -14,6 +14,7 @@ from ..model_utils import (
     pad_3d,
 )
 from .earth_3d_specifics import EarthSpecificLayer
+from .smoothing import SegmentedSmoothingV2
 
 __all__ = ["PanguModel"]
 
@@ -39,6 +40,7 @@ class PanguModel(nn.Module):
         max_drop_path_ratio: float,
         dropout_rate: float,
         smoothing_kernel_size: int | None = None,
+        segmented_smooth_boundary_width: int | None = None,
         const_mask_paths: list[str] | None = None,
     ) -> None:
         assert len(depths) == 2  # only two layers allowed
@@ -52,9 +54,24 @@ class PanguModel(nn.Module):
         drop_path_list = np.linspace(0, max_drop_path_ratio, sum(depths)).tolist()
         embed_dim = [(2**i) * embed_dim for i in range(hierarchy)]
 
-        # TODO: smoothing layer
         if smoothing_kernel_size is None:
             self.smoothing_layer = Identity()
+        else:
+            assert smoothing_kernel_size % 2 == 1
+            if segmented_smooth_boundary_width:
+                smoothing_func = SegmentedSmoothingV2(
+                    kernel_size=smoothing_kernel_size,
+                    boundary_width=segmented_smooth_boundary_width,
+                )
+            else:
+                smoothing_func = nn.AvgPool3d(
+                    kernel_size=(1, smoothing_kernel_size, smoothing_kernel_size),
+                    stride=(1, 1, 1),
+                    padding=(0, smoothing_kernel_size // 2, smoothing_kernel_size // 2),
+                    count_include_pad=False,
+                )
+
+            self.smoothing_layer = SmoothingBlock(smoothing_func=smoothing_func)
 
         # ===== Left Side of Unet =====#
         self.patch_embed = PatchEmbedding(
@@ -135,6 +152,9 @@ class PanguModel(nn.Module):
         x = self.layer4(x)
         x = torch.cat([skip, x], dim=-1)
         output_upper, output_surface = self.patch_recover(x)
+        output_upper, output_surface = self.smoothing_layer(
+            output_upper, output_surface
+        )
         return output_upper, output_surface
 
 
@@ -146,6 +166,31 @@ class Identity(nn.Module):
     def forward(
         self, x_upper: torch.Tensor, x_surface: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        return x_upper, x_surface
+
+
+class SmoothingBlock(nn.Module):
+    def __init__(
+        self,
+        smoothing_func: nn.Module,
+    ) -> None:
+        """
+        Smooths horizontal dimensions of the upper and surface data with average pooling
+        """
+        super().__init__()
+        self.smoothing_func = smoothing_func
+
+    def forward(
+        self, x_upper: torch.Tensor, x_surface: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x_upper = rearrange(x_upper, "b z h w c -> b c z h w")
+        x_surface = rearrange(x_surface, "b 1 h w c -> b c 1 h w")
+
+        x_upper = self.smoothing_func(x_upper)
+        x_surface = self.smoothing_func(x_surface)
+
+        x_upper = rearrange(x_upper, "b c z h w -> b z h w c")
+        x_surface = rearrange(x_surface, "b c 1 h w -> b 1 h w c")
         return x_upper, x_surface
 
 

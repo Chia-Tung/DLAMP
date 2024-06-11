@@ -56,6 +56,7 @@ class PanguBuilder(BaseBuilder):
             max_drop_path_ratio=self.kwargs.max_drop_path_ratio,
             dropout_rate=self.kwargs.dropout_rate,
             smoothing_kernel_size=self.kwargs.smoothing_kernel_size,
+            segmented_smooth_boundary_width=self.kwargs.segmented_smooth_boundary_width,
             const_mask_paths=self.kwargs.const_mask_paths,
         )
 
