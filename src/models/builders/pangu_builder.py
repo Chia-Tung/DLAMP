@@ -59,7 +59,7 @@ class PanguBuilder(BaseBuilder):
             const_mask_paths=self.kwargs.const_mask_paths,
         )
 
-    def build_model(self, test_dataloader: DataLoader) -> LightningModule:
+    def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         return PanguLightningModule(
             test_dataloader=test_dataloader,
             backbone_model=self._backbone_model(),
