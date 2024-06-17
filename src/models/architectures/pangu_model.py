@@ -1,11 +1,13 @@
 import logging
 from math import ceil
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
 
+from ...const import LAND_SEA_MASK_PATH, NORMALIZED_TOPOGRAPHY_PATH
 from ..model_utils import (
     crop_pad_2d,
     crop_pad_3d,
@@ -223,14 +225,17 @@ class PatchEmbedding(nn.Module):
         """
         super().__init__()
 
-        # TODO: constant mask
-        if const_mask_paths is not None:
-            raise NotImplementedError("Constant mask is not implemented yet.")
+        if (
+            Path(LAND_SEA_MASK_PATH).exists()
+            and Path(NORMALIZED_TOPOGRAPHY_PATH).exists()
+        ):
+            land_mask = np.load(LAND_SEA_MASK_PATH).astype(np.float32)
+            topography_mask = np.load(NORMALIZED_TOPOGRAPHY_PATH).astype(np.float32)
+            additional_channels = 2
         else:
-            land_mask, soil_mask, topography_mask = None, None, None
+            land_mask, topography_mask = None, None
             additional_channels = 0
         self.register_buffer("land_mask", land_mask)
-        self.register_buffer("soil_mask", soil_mask)
         self.register_buffer("topography_mask", topography_mask)
 
         # Use convolution to partition data into cubes
@@ -266,17 +271,12 @@ class PatchEmbedding(nn.Module):
         Returns:
             torch.Tensor: Tensor of shape (B, inp_Z*inp_H*inp_W, dim).
         """
-        if (
-            self.land_mask is not None
-            and self.soil_mask is not None
-            and self.topography_mask is not None
-        ):
+        if self.land_mask is not None and self.topography_mask is not None:
             batch_size = input_surface.shape[0]
             input_surface = torch.cat(
                 [
                     input_surface,
                     repeat(self.land_mask, "h w -> b 1 h w 1", b=batch_size),
-                    repeat(self.soil_mask, "h w -> b 1 h w 1", b=batch_size),
                     repeat(self.topography_mask, "h w -> b 1 h w 1", b=batch_size),
                 ],
                 dim=-1,

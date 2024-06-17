@@ -9,6 +9,8 @@ VAR_SUFFIX = "WE01H0202500"
 # Path
 BLACKLIST_PATH = "./assets/blacklist.txt"
 CHECKPOINT_DIR = "./checkpoints/"
+LAND_SEA_MASK_PATH = "./assets/constant_masks/land_sea_mask.npy"
+NORMALIZED_TOPOGRAPHY_PATH = "./assets/constant_masks/normalized_topography.npy"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
 DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"
