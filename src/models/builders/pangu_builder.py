@@ -57,7 +57,6 @@ class PanguBuilder(BaseBuilder):
             dropout_rate=self.kwargs.dropout_rate,
             smoothing_kernel_size=self.kwargs.smoothing_kernel_size,
             segmented_smooth_boundary_width=self.kwargs.segmented_smooth_boundary_width,
-            const_mask_paths=self.kwargs.const_mask_paths,
         )
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:

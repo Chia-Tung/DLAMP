@@ -4,10 +4,9 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-from sklearn.preprocessing import StandardScaler
 from tqdm import trange
 
-from .const import LAND_SEA_MASK_PATH, NORMALIZED_TOPOGRAPHY_PATH
+from .const import LAND_SEA_MASK_PATH, TOPOGRAPHY_MASK_PATH
 from .utils import DataGenerator
 
 
@@ -67,13 +66,9 @@ def gen_const_masks():
             ]
             terrain_mask[i, j] = combined_filter["高程"].values
 
-    # standardize
-    scaler = StandardScaler().fit(terrain_mask.reshape(-1, 1))
-    n_terrain_mask = (terrain_mask - scaler.mean_) / scaler.scale_
-
     # save npy
+    np.save(TOPOGRAPHY_MASK_PATH, terrain_mask)
     np.save(LAND_SEA_MASK_PATH, np.where(terrain_mask > 0.5, 1, 0))
-    np.save(NORMALIZED_TOPOGRAPHY_PATH, n_terrain_mask)
     print("done")
 
 

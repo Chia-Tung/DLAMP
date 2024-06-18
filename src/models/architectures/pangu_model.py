@@ -6,8 +6,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from sklearn.preprocessing import MinMaxScaler
 
-from ...const import LAND_SEA_MASK_PATH, NORMALIZED_TOPOGRAPHY_PATH
+from ...const import LAND_SEA_MASK_PATH, TOPOGRAPHY_MASK_PATH
 from ..model_utils import (
     crop_pad_2d,
     crop_pad_3d,
@@ -43,7 +44,6 @@ class PanguModel(nn.Module):
         dropout_rate: float,
         smoothing_kernel_size: int | None = None,
         segmented_smooth_boundary_width: int | None = None,
-        const_mask_paths: list[str] | None = None,
     ) -> None:
         assert len(depths) == 2  # only two layers allowed
         assert len(heads) == len(depths)
@@ -82,7 +82,6 @@ class PanguModel(nn.Module):
             upper_channels=upper_channels,
             surface_channels=surface_channels,
             dim=embed_dim[0],
-            const_mask_paths=const_mask_paths,
         )
 
         for i, depth in enumerate(depths):
@@ -204,7 +203,6 @@ class PatchEmbedding(nn.Module):
         upper_channels: int,
         surface_channels: int,
         dim: int,
-        const_mask_paths: list[str] | None,
     ) -> None:
         """
         Convert input fields to patches and linearly embed them.
@@ -215,7 +213,6 @@ class PatchEmbedding(nn.Module):
             upper_channels (int): The number of channels in the upper_air data.
             surface_channels (int): The number of channels in the surface data.
             dim (int): The dimension of the embedded output.
-            const_mask_paths (list[str] | None): The paths to constant masks.
 
         Raises:
             NotImplementedError: If constant masks are provided.
@@ -225,12 +222,16 @@ class PatchEmbedding(nn.Module):
         """
         super().__init__()
 
-        if (
-            Path(LAND_SEA_MASK_PATH).exists()
-            and Path(NORMALIZED_TOPOGRAPHY_PATH).exists()
-        ):
-            land_mask = np.load(LAND_SEA_MASK_PATH).astype(np.float32)
-            topography_mask = np.load(NORMALIZED_TOPOGRAPHY_PATH).astype(np.float32)
+        if Path(LAND_SEA_MASK_PATH).exists() and Path(TOPOGRAPHY_MASK_PATH).exists():
+            land_mask = torch.from_numpy(np.load(LAND_SEA_MASK_PATH).astype(np.float32))
+            topography_mask = torch.from_numpy(
+                np.load(TOPOGRAPHY_MASK_PATH).astype(np.float32)
+            )
+            # Scale and shift to the range of [0, 1]
+            scaler = MinMaxScaler().fit(topography_mask.reshape(-1, 1))
+            scale = scaler.scale_.astype(np.float32)
+            min = scaler.min_.astype(np.float32)
+            topography_mask = topography_mask * scale + min
             additional_channels = 2
         else:
             land_mask, topography_mask = None, None
