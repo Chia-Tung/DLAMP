@@ -1,9 +1,12 @@
+import json
 from collections import defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 from torch.utils.data import Dataset
 
+from ..const import STANDARDIZATION_PATH
 from ..utils import DataCompose, DataGenerator
 
 
@@ -28,6 +31,12 @@ class CustomDataset(Dataset):
         self._init_time_list = init_time_list
         self._data_list = data_list
         self._is_train = is_train
+
+        if Path(STANDARDIZATION_PATH).exists():
+            with open(STANDARDIZATION_PATH, "r") as f:
+                self.stat_dict: dict = json.load(f)
+        else:
+            self.stat_dict = {}
 
     def __len__(self):
         """
@@ -82,6 +91,9 @@ class CustomDataset(Dataset):
         # order in `config/data/data_config.yaml`
         for data_compose in self._data_list:
             data = self._data_gnrt.yield_data(dt, data_compose, to_numpy=True)
+            if self.stat_dict:
+                stat = self.stat_dict[str(data_compose)]
+                data = (data - stat["mean"]) / stat["std"]
             pre_output[data_compose.level].append(data)
 
         # concatenate by variable, group by level

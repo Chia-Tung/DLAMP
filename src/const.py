@@ -12,6 +12,7 @@ CHECKPOINT_DIR = "./checkpoints/"
 LAND_SEA_MASK_PATH = "./assets/constant_masks/land_sea_mask.npy"
 TOPOGRAPHY_MASK_PATH = "./assets/constant_masks/topography_mask.npy"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
+STANDARDIZATION_PATH = "./assets/standardization.json"
 DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"
 
