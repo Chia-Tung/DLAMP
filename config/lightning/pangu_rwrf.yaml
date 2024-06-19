@@ -23,6 +23,7 @@ lr_schedule:
 num_gpus: null
 fast_dev_run: False
 max_epochs: 100
+max_steps: -1
 limit_train_batches: null
 limit_val_batches: null
 early_stop_patience: 30

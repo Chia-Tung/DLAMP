@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 import yaml
@@ -21,13 +22,25 @@ def calc_standardization(
     with open("config/data/rwrf.yaml", "r") as stream:
         data_config = yaml.safe_load(stream)
 
+    # load already calculated mean and standard deviation
+    if Path(STANDARDIZATION_PATH).exists():
+        with open(STANDARDIZATION_PATH, "r") as f:
+            stat_dict_already: dict = json.load(f)
+    else:
+        stat_dict_already = {}
+
     # calculation
     data_list = DataCompose.from_config(data_config["train_data"])
-    ans = {}
     for data_compose in tqdm(data_list):
         dt = start_time
         container = []
         print(f"start executing {data_compose}")
+
+        if str(data_compose) in stat_dict_already:
+            print(
+                f"skip {data_compose} because it already exists in {STANDARDIZATION_PATH}"
+            )
+            continue
 
         while dt < end_time:
             if gen_path(dt, data_compose).exists():
@@ -45,11 +58,12 @@ def calc_standardization(
                 print(f"now is processing {dt}")
 
         all_data = np.stack(container)
-        ans[str(data_compose)] = {"mean": np.mean(all_data), "std": np.std(all_data)}
+        stat_dict_already[str(data_compose)] = {"mean": np.mean(all_data), "std": np.std(all_data)}
 
     # write into json file
     with open(STANDARDIZATION_PATH, "w") as f:
-        json.dump(ans, f)
+        json.dump(stat_dict_already, f)
+
 
 if __name__ == "__main__":
     calc_standardization()

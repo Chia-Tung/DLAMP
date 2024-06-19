@@ -2,7 +2,7 @@ model_name: Pangu
 # patch embedding
 patch_size: [1, 2, 2]
 smoothing_kernel_size: 5
-segmented_smooth_boundary_width: 10
+segmented_smooth_boundary_width: null
 # earth layer
 depths: [2, 6]
 # earth block
