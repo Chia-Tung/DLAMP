@@ -7,7 +7,7 @@ import yaml
 from tqdm import tqdm
 
 from .const import STANDARDIZATION_PATH
-from .utils import DataCompose, gen_data, gen_path
+from .utils import DataCompose, Level, gen_data, gen_path
 
 
 def calc_standardization(
@@ -58,11 +58,58 @@ def calc_standardization(
                 print(f"now is processing {dt}")
 
         all_data = np.stack(container)
-        stat_dict_already[str(data_compose)] = {"mean": np.mean(all_data), "std": np.std(all_data)}
+        stat_dict_already[str(data_compose)] = {
+            "mean": np.mean(all_data),
+            "std": np.std(all_data),
+        }
 
     # write into json file
     with open(STANDARDIZATION_PATH, "w") as f:
         json.dump(stat_dict_already, f)
+
+
+def destandardization(array: np.ndarray) -> np.ndarray:
+    """
+    destandardize the data based on the mean and standard deviation calculated from the dataset
+
+    Args:
+        array (np.ndarray): The data array to be destandardized with shape (lv, H, W, C).
+
+    Returns:
+        np.ndarray: The destandardized data with shape (lv, H, W, C).
+    """
+
+    # load already calculated mean and standard deviation
+    assert Path(STANDARDIZATION_PATH).exists(), "Calculate the mean and std first."
+    with open(STANDARDIZATION_PATH, "r") as f:
+        stat_dict_already: dict = json.load(f)
+
+    # load config
+    with open("config/data/rwrf.yaml", "r") as stream:
+        data_config = yaml.safe_load(stream)
+    data_list = DataCompose.from_config(data_config["train_data"])
+    pressure_levels = DataCompose.get_all_levels(data_list, only_upper=True)
+    upper_vars = DataCompose.get_all_vars(data_list, only_upper=True)
+    surface_vars = DataCompose.get_all_vars(data_list, only_surface=True)
+
+    # calculate
+    if array.shape[0] != 1:  # upper
+        for i, lv in enumerate(pressure_levels):
+            for j, var in enumerate(upper_vars):
+                tmp_compose: DataCompose = DataCompose(var, lv)
+                array[i, :, :, j] = (
+                    array[i, :, :, j] * stat_dict_already[str(tmp_compose)]["std"]
+                    + stat_dict_already[str(tmp_compose)]["mean"]
+                )
+        return array
+    else:  # surface
+        for j, var in enumerate(surface_vars):
+            tmp_compose: DataCompose = DataCompose(var, Level.Surface)
+            array[0, :, :, j] = (
+                array[0, :, :, j] * stat_dict_already[str(tmp_compose)]["std"]
+                + stat_dict_already[str(tmp_compose)]["mean"]
+            )
+        return array
 
 
 if __name__ == "__main__":

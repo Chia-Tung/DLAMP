@@ -9,13 +9,16 @@ from lightning.pytorch.callbacks import Callback
 from visual import VizRadar
 
 from ...datasets import CustomDataset
+from ...standardization import destandardization
 from ...utils import DataGenerator
 
 
 class LogPredictionSamplesCallback(Callback):
-    def __init__(self):
+    def __init__(self, log_image_per_n_steps: int):
         super().__init__()
+        self.log_freq = log_image_per_n_steps
         self.painter = VizRadar()
+        self.global_step_record = 0
         self.already_load_data_for_plot = False
 
     def on_validation_start(
@@ -42,6 +45,7 @@ class LogPredictionSamplesCallback(Callback):
             # (1, lv, H, W, C)
             for k in input.keys():
                 input[k] = torch.from_numpy(input[k][None]).cuda()
+                target[k] = destandardization(target[k])
                 target[k] = torch.from_numpy(target[k][None]).cuda()
 
             self.fig_inputs.append(input)
@@ -50,6 +54,10 @@ class LogPredictionSamplesCallback(Callback):
         self.already_load_data_for_plot = True
 
     def on_validation_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
+        global_step = trainer.global_step
+        if global_step != 0 and global_step - self.global_step_record < self.log_freq:
+            return
+
         wandb_logger = trainer.logger.experiment
         fig_gt_list = []
         fig_pd_list = []
@@ -58,7 +66,8 @@ class LogPredictionSamplesCallback(Callback):
         # table = wandb.Table(columns=["case ID", "pred", "target"])
         for idx, (input, target) in enumerate(zip(self.fig_inputs, self.fig_targets)):
             _, oup_surface = pl_module(input["upper_air"], input["surface"])
-            oup_surface = np.squeeze(oup_surface.cpu().numpy())  # (H, W)
+            oup_surface = destandardization(oup_surface.cpu().numpy())
+            oup_surface = np.squeeze(oup_surface)  # (H, W)
             tag_surface = np.squeeze(target["surface"].cpu().numpy())  # (H, W)
 
             fig_gt, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, tag_surface)
@@ -71,3 +80,5 @@ class LogPredictionSamplesCallback(Callback):
 
         wandb_logger.log({"ground truth": fig_gt_list, "predictions": fig_pd_list})
         # wandb_logger.log({"prediction_table": table})
+
+        self.global_step_record = global_step

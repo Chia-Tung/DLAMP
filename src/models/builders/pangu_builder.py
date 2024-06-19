@@ -80,6 +80,20 @@ class PanguBuilder(BaseBuilder):
             else self.kwargs.num_gpus
         )
 
+        callbacks = []
+        callbacks.append(LearningRateMonitor())
+        callbacks.append(self.checkpoint_callback())
+        if self.kwargs.log_image_per_n_steps is not None:
+            callbacks.append(
+                LogPredictionSamplesCallback(self.kwargs.log_image_per_n_steps)
+            )
+        if self.kwargs.early_stop_patience is not None:
+            callbacks.append(
+                EarlyStopping(
+                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
+                )
+            )
+
         return Trainer(
             num_sanity_val_steps=2,
             benchmark=True,
@@ -94,14 +108,7 @@ class PanguBuilder(BaseBuilder):
             accelerator="gpu",
             devices=[i for i in range(num_gpus)],
             strategy="auto" if num_gpus <= 1 else "ddp",
-            callbacks=[
-                LearningRateMonitor(),
-                LogPredictionSamplesCallback(),
-                EarlyStopping(
-                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
-                ),
-                self.checkpoint_callback(),
-            ],
+            callbacks=callbacks,
             profiler=PyTorchProfiler(
                 dirpath="./profiler", filename=f"{self.__class__.__name__}"
             ),
