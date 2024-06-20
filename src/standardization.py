@@ -7,7 +7,7 @@ import yaml
 from tqdm import tqdm
 
 from .const import STANDARDIZATION_PATH
-from .utils import DataCompose, Level, gen_data, gen_path
+from .utils import DataCompose, DataType, Level, gen_data, gen_path
 
 
 def calc_standardization(
@@ -73,10 +73,11 @@ def destandardization(array: np.ndarray) -> np.ndarray:
     destandardize the data based on the mean and standard deviation calculated from the dataset
 
     Args:
-        array (np.ndarray): The data array to be destandardized with shape (lv, H, W, C).
+        array (np.ndarray): The data array to be destandardized with shape (lv, H, W, C) or
+        (B, lv, H, W, C).
 
     Returns:
-        np.ndarray: The destandardized data with shape (lv, H, W, C).
+        np.ndarray: The destandardized data with shape (lv, H, W, C) or (B, lv, H, W, C).
     """
 
     # load already calculated mean and standard deviation
@@ -92,24 +93,51 @@ def destandardization(array: np.ndarray) -> np.ndarray:
     upper_vars = DataCompose.get_all_vars(data_list, only_upper=True)
     surface_vars = DataCompose.get_all_vars(data_list, only_surface=True)
 
+    # define inner function
+    def fn(
+        array: np.ndarray,
+        levels: list[Level],
+        vars: list[DataType],
+        batch: bool = False,
+    ):
+        new_array = np.zeros_like(array)
+        for i, lv in enumerate(levels):
+            for j, var in enumerate(vars):
+                tmp_compose = DataCompose(var, lv)
+                if batch:
+                    new_array[:, i, :, :, j] = (
+                        array[:, i, :, :, j]
+                        * stat_dict_already[str(tmp_compose)]["std"]
+                        + stat_dict_already[str(tmp_compose)]["mean"]
+                    )
+                else:
+                    new_array[i, :, :, j] = (
+                        array[i, :, :, j] * stat_dict_already[str(tmp_compose)]["std"]
+                        + stat_dict_already[str(tmp_compose)]["mean"]
+                    )
+        return new_array
+
     # calculate
-    if array.shape[0] != 1:  # upper
-        for i, lv in enumerate(pressure_levels):
-            for j, var in enumerate(upper_vars):
-                tmp_compose: DataCompose = DataCompose(var, lv)
-                array[i, :, :, j] = (
-                    array[i, :, :, j] * stat_dict_already[str(tmp_compose)]["std"]
-                    + stat_dict_already[str(tmp_compose)]["mean"]
-                )
-        return array
-    else:  # surface
-        for j, var in enumerate(surface_vars):
-            tmp_compose: DataCompose = DataCompose(var, Level.Surface)
-            array[0, :, :, j] = (
-                array[0, :, :, j] * stat_dict_already[str(tmp_compose)]["std"]
-                + stat_dict_already[str(tmp_compose)]["mean"]
-            )
-        return array
+    num_array_dim = len(array.shape)
+    match num_array_dim:
+        case 4:  # w/o batch
+            if array.shape[0] != 1:
+                destandardize_levels = pressure_levels
+                destandardize_vars = upper_vars
+            else:
+                destandardize_levels = [Level.Surface]
+                destandardize_vars = surface_vars
+            return fn(array, destandardize_levels, destandardize_vars)
+        case 5:  # w/ batch
+            if array.shape[1] != 1:
+                destandardize_levels = pressure_levels
+                destandardize_vars = upper_vars
+            else:
+                destandardize_levels = [Level.Surface]
+                destandardize_vars = surface_vars
+            return fn(array, destandardize_levels, destandardize_vars, batch=True)
+        case _:
+            raise ValueError("The shape of the input array is not supported.")
 
 
 if __name__ == "__main__":

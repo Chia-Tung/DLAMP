@@ -22,9 +22,9 @@ lr_schedule:
 # lightning.Trainer
 num_gpus: null
 fast_dev_run: False
-max_epochs: -1 # infinite epochs
-max_steps: 1e5
+max_epochs: null
+min_steps: 1e5
 limit_train_batches: null
 limit_val_batches: null
-early_stop_patience: null
+early_stop_patience: 5
 log_image_per_n_steps: 5000
