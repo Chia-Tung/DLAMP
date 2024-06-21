@@ -1,11 +1,14 @@
 import logging
 from math import ceil
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from sklearn.preprocessing import MinMaxScaler
 
+from ...const import LAND_SEA_MASK_PATH, TOPOGRAPHY_MASK_PATH
 from ..model_utils import (
     crop_pad_2d,
     crop_pad_3d,
@@ -14,6 +17,7 @@ from ..model_utils import (
     pad_3d,
 )
 from .earth_3d_specifics import EarthSpecificLayer
+from .smoothing import SegmentedSmoothingV2
 
 __all__ = ["PanguModel"]
 
@@ -39,7 +43,7 @@ class PanguModel(nn.Module):
         max_drop_path_ratio: float,
         dropout_rate: float,
         smoothing_kernel_size: int | None = None,
-        const_mask_paths: list[str] | None = None,
+        segmented_smooth_boundary_width: int | None = None,
     ) -> None:
         assert len(depths) == 2  # only two layers allowed
         assert len(heads) == len(depths)
@@ -52,9 +56,24 @@ class PanguModel(nn.Module):
         drop_path_list = np.linspace(0, max_drop_path_ratio, sum(depths)).tolist()
         embed_dim = [(2**i) * embed_dim for i in range(hierarchy)]
 
-        # TODO: smoothing layer
         if smoothing_kernel_size is None:
             self.smoothing_layer = Identity()
+        else:
+            assert smoothing_kernel_size % 2 == 1
+            if segmented_smooth_boundary_width:
+                smoothing_func = SegmentedSmoothingV2(
+                    kernel_size=smoothing_kernel_size,
+                    boundary_width=segmented_smooth_boundary_width,
+                )
+            else:
+                smoothing_func = nn.AvgPool3d(
+                    kernel_size=(1, smoothing_kernel_size, smoothing_kernel_size),
+                    stride=(1, 1, 1),
+                    padding=(0, smoothing_kernel_size // 2, smoothing_kernel_size // 2),
+                    count_include_pad=False,
+                )
+
+            self.smoothing_layer = SmoothingBlock(smoothing_func=smoothing_func)
 
         # ===== Left Side of Unet =====#
         self.patch_embed = PatchEmbedding(
@@ -63,7 +82,6 @@ class PanguModel(nn.Module):
             upper_channels=upper_channels,
             surface_channels=surface_channels,
             dim=embed_dim[0],
-            const_mask_paths=const_mask_paths,
         )
 
         for i, depth in enumerate(depths):
@@ -135,6 +153,9 @@ class PanguModel(nn.Module):
         x = self.layer4(x)
         x = torch.cat([skip, x], dim=-1)
         output_upper, output_surface = self.patch_recover(x)
+        output_upper, output_surface = self.smoothing_layer(
+            output_upper, output_surface
+        )
         return output_upper, output_surface
 
 
@@ -149,6 +170,31 @@ class Identity(nn.Module):
         return x_upper, x_surface
 
 
+class SmoothingBlock(nn.Module):
+    def __init__(
+        self,
+        smoothing_func: nn.Module,
+    ) -> None:
+        """
+        Smooths horizontal dimensions of the upper and surface data with average pooling
+        """
+        super().__init__()
+        self.smoothing_func = smoothing_func
+
+    def forward(
+        self, x_upper: torch.Tensor, x_surface: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x_upper = rearrange(x_upper, "b z h w c -> b c z h w")
+        x_surface = rearrange(x_surface, "b 1 h w c -> b c 1 h w")
+
+        x_upper = self.smoothing_func(x_upper)
+        x_surface = self.smoothing_func(x_surface)
+
+        x_upper = rearrange(x_upper, "b c z h w -> b z h w c")
+        x_surface = rearrange(x_surface, "b c 1 h w -> b 1 h w c")
+        return x_upper, x_surface
+
+
 class PatchEmbedding(nn.Module):
     def __init__(
         self,
@@ -157,7 +203,6 @@ class PatchEmbedding(nn.Module):
         upper_channels: int,
         surface_channels: int,
         dim: int,
-        const_mask_paths: list[str] | None,
     ) -> None:
         """
         Convert input fields to patches and linearly embed them.
@@ -168,7 +213,6 @@ class PatchEmbedding(nn.Module):
             upper_channels (int): The number of channels in the upper_air data.
             surface_channels (int): The number of channels in the surface data.
             dim (int): The dimension of the embedded output.
-            const_mask_paths (list[str] | None): The paths to constant masks.
 
         Raises:
             NotImplementedError: If constant masks are provided.
@@ -178,14 +222,21 @@ class PatchEmbedding(nn.Module):
         """
         super().__init__()
 
-        # TODO: constant mask
-        if const_mask_paths is not None:
-            raise NotImplementedError("Constant mask is not implemented yet.")
+        if Path(LAND_SEA_MASK_PATH).exists() and Path(TOPOGRAPHY_MASK_PATH).exists():
+            land_mask = torch.from_numpy(np.load(LAND_SEA_MASK_PATH).astype(np.float32))
+            topography_mask = torch.from_numpy(
+                np.load(TOPOGRAPHY_MASK_PATH).astype(np.float32)
+            )
+            # Scale and shift to the range of [0, 1]
+            scaler = MinMaxScaler().fit(topography_mask.reshape(-1, 1))
+            scale = scaler.scale_.astype(np.float32)
+            min = scaler.min_.astype(np.float32)
+            topography_mask = topography_mask * scale + min
+            additional_channels = 2
         else:
-            land_mask, soil_mask, topography_mask = None, None, None
+            land_mask, topography_mask = None, None
             additional_channels = 0
         self.register_buffer("land_mask", land_mask)
-        self.register_buffer("soil_mask", soil_mask)
         self.register_buffer("topography_mask", topography_mask)
 
         # Use convolution to partition data into cubes
@@ -221,17 +272,12 @@ class PatchEmbedding(nn.Module):
         Returns:
             torch.Tensor: Tensor of shape (B, inp_Z*inp_H*inp_W, dim).
         """
-        if (
-            self.land_mask is not None
-            and self.soil_mask is not None
-            and self.topography_mask is not None
-        ):
+        if self.land_mask is not None and self.topography_mask is not None:
             batch_size = input_surface.shape[0]
             input_surface = torch.cat(
                 [
                     input_surface,
                     repeat(self.land_mask, "h w -> b 1 h w 1", b=batch_size),
-                    repeat(self.soil_mask, "h w -> b 1 h w 1", b=batch_size),
                     repeat(self.topography_mask, "h w -> b 1 h w 1", b=batch_size),
                 ],
                 dim=-1,

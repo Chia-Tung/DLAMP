@@ -2,6 +2,8 @@ from collections import defaultdict
 
 import torch
 
+from src.standardization import destandardization
+
 
 def prediction_postprocess(
     trainer_output: list[list[torch.Tensor]], mapping: dict[int, str]
@@ -33,6 +35,8 @@ def prediction_postprocess(
             predictions[key].append(trainer_output[epoch_id][value])
 
     for k, v in predictions.items():
-        predictions[k] = torch.cat(v, dim=0)  # {"input_upper": (B, lv, h, w, c)...}
+        tmp = torch.cat(v, dim=0)  # {"input_upper": (B, lv, h, w, c)...}
+        tmp = destandardization(tmp.cpu().numpy())
+        predictions[k] = torch.from_numpy(tmp)
 
     return predictions

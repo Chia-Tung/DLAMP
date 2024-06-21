@@ -56,7 +56,7 @@ class PanguBuilder(BaseBuilder):
             max_drop_path_ratio=self.kwargs.max_drop_path_ratio,
             dropout_rate=self.kwargs.dropout_rate,
             smoothing_kernel_size=self.kwargs.smoothing_kernel_size,
-            const_mask_paths=self.kwargs.const_mask_paths,
+            segmented_smooth_boundary_width=self.kwargs.segmented_smooth_boundary_width,
         )
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
@@ -80,6 +80,20 @@ class PanguBuilder(BaseBuilder):
             else self.kwargs.num_gpus
         )
 
+        callbacks = []
+        callbacks.append(LearningRateMonitor())
+        callbacks.append(self.checkpoint_callback())
+        if self.kwargs.log_image_per_n_steps is not None:
+            callbacks.append(
+                LogPredictionSamplesCallback(self.kwargs.log_image_per_n_steps)
+            )
+        if self.kwargs.early_stop_patience is not None:
+            callbacks.append(
+                EarlyStopping(
+                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
+                )
+            )
+
         return Trainer(
             num_sanity_val_steps=2,
             benchmark=True,
@@ -87,20 +101,14 @@ class PanguBuilder(BaseBuilder):
             logger=logger,
             check_val_every_n_epoch=1,
             log_every_n_steps=None,
-            max_epochs=self.kwargs.max_epochs,
-            limit_train_batches=self.kwargs.limit_train_batches,
-            limit_val_batches=self.kwargs.limit_val_batches,
+            max_epochs=getattr(self.kwargs, "max_epochs", None), # -1: infinite epochs, None: default 1000 epochs
+            min_steps=getattr(self.kwargs, "min_steps", -1), # max_epoch must be valid
+            limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
+            limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
             accelerator="gpu",
             devices=[i for i in range(num_gpus)],
             strategy="auto" if num_gpus <= 1 else "ddp",
-            callbacks=[
-                LearningRateMonitor(),
-                LogPredictionSamplesCallback(),
-                EarlyStopping(
-                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
-                ),
-                self.checkpoint_callback(),
-            ],
+            callbacks=callbacks,
             profiler=PyTorchProfiler(
                 dirpath="./profiler", filename=f"{self.__class__.__name__}"
             ),
