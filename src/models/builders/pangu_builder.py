@@ -102,7 +102,7 @@ class PanguBuilder(BaseBuilder):
             check_val_every_n_epoch=1,
             log_every_n_steps=None,
             max_epochs=getattr(self.kwargs, "max_epochs", None), # -1: infinite epochs, None: default 1000 epochs
-            min_steps=getattr(self.kwargs, "min_steps", -1),
+            min_steps=getattr(self.kwargs, "min_steps", -1), # max_epoch must be valid
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
             limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
             accelerator="gpu",

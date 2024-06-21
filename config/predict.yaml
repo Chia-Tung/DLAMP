@@ -16,6 +16,7 @@ hydra:
 lightning:
   sampling_rate: 1
   batch_size: 16
+  workers: 4
 
 defaults:
   - data: rwrf
