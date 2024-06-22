@@ -42,7 +42,15 @@ def main(cfg: DictConfig) -> None:
     trainer = model_builder.build_trainer(wandb_logger)
 
     # start training
-    trainer.fit(model, data_manager)
+    trainer.fit(
+        model,
+        data_manager,
+        ckpt_path=(
+            cfg.lightning.resume_from_checkpoint
+            if cfg.lightning.resume_from_checkpoint
+            else None
+        ),
+    )
 
 
 if __name__ == "__main__":
