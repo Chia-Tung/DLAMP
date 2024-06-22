@@ -14,9 +14,9 @@ from ...utils import DataGenerator
 
 
 class LogPredictionSamplesCallback(Callback):
-    def __init__(self, log_image_per_n_steps: int):
+    def __init__(self, log_image_every_n_steps: int):
         super().__init__()
-        self.log_freq = log_image_per_n_steps
+        self.log_freq = log_image_every_n_steps
         self.painter = VizRadar()
         self.global_step_record = 0
         self.already_load_data_for_plot = False
