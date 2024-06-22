@@ -85,7 +85,7 @@ class PanguBuilder(BaseBuilder):
         callbacks.append(self.checkpoint_callback())
         if self.kwargs.log_image_per_n_steps is not None:
             callbacks.append(
-                LogPredictionSamplesCallback(self.kwargs.log_image_per_n_steps)
+                LogPredictionSamplesCallback(self.kwargs.log_image_every_n_steps)
             )
         if self.kwargs.early_stop_patience is not None:
             callbacks.append(
@@ -100,7 +100,7 @@ class PanguBuilder(BaseBuilder):
             fast_dev_run=self.kwargs.fast_dev_run,  # use n batch(es) to fast run through train/valid, no logging, no checkpoint, no max_epoch
             logger=logger,
             check_val_every_n_epoch=1,
-            log_every_n_steps=None,
+            log_every_n_steps=self.kwargs.log_every_n_steps,
             max_epochs=getattr(self.kwargs, "max_epochs", None), # -1: infinite epochs, None: default 1000 epochs
             min_steps=getattr(self.kwargs, "min_steps", -1), # max_epoch must be valid
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
