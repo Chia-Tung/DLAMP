@@ -1,0 +1,24 @@
+hydra:
+  run:  
+    dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S}
+  job:
+    chdir: False
+  output_subdir: .hydra
+  job_logging:
+    root:
+      level: DEBUG
+    handlers:
+      console:
+        level: INFO
+      file:
+        level: DEBUG
+
+lightning:
+  pangu_onnx: "./export/pangu_model.onnx"
+
+defaults:
+  - data: rwrf
+  - lightning: diffusion_rwrf
+  - model: diffusion_rwrf
+  - _self_
+  - override hydra/job_logging: default
