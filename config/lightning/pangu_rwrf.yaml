@@ -26,7 +26,7 @@ max_epochs: null
 min_steps: 1e5
 limit_train_batches: null
 limit_val_batches: null
-early_stop_patience: 5
+early_stop_patience: 10
 log_image_every_n_steps: 5000
 log_every_n_steps: 500
-resume_from_checkpoint: "./checkpoints/Pangu_240619_223809-epoch=191-val_loss_epoch=0.1926.ckpt"
+resume_from_checkpoint: "./checkpoints/Pangu_240622_151146-epoch=204-val_loss_epoch=0.1829.ckpt"
