@@ -83,7 +83,7 @@ class PanguBuilder(BaseBuilder):
         callbacks = []
         callbacks.append(LearningRateMonitor())
         callbacks.append(self.checkpoint_callback())
-        if self.kwargs.log_image_per_n_steps is not None:
+        if self.kwargs.log_image_every_n_steps is not None:
             callbacks.append(
                 LogPredictionSamplesCallback(self.kwargs.log_image_every_n_steps)
             )
@@ -101,8 +101,9 @@ class PanguBuilder(BaseBuilder):
             logger=logger,
             check_val_every_n_epoch=1,
             log_every_n_steps=self.kwargs.log_every_n_steps,
-            max_epochs=getattr(self.kwargs, "max_epochs", None), # -1: infinite epochs, None: default 1000 epochs
-            min_steps=getattr(self.kwargs, "min_steps", -1), # max_epoch must be valid
+            # -1: infinite epochs, None: default 1000 epochs
+            max_epochs=getattr(self.kwargs, "max_epochs", None),
+            min_steps=getattr(self.kwargs, "min_steps", -1),  # max_epoch must be valid
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
             limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
             accelerator="gpu",
