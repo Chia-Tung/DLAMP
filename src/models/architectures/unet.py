@@ -52,63 +52,69 @@ class UNet(nn.Module):
         time_dim = hidden_dim * reduce(lambda x, y: x * y, ch_mults)
         self.time_emb = TimeEmbedding(time_dim)
 
-        ### First half of U-Net - decreasing resolution ###
+        # First half of U-Net - decreasing resolution
         self.down = nn.ModuleDict()
         out_channels = in_channels = hidden_dim
 
-        # For each resolution
         for i in range(self.n_resolutions):
             out_channels = in_channels * ch_mults[i]
 
             down_block = []
             for _ in range(n_blocks[i]):
                 down_block.append(
-                    DownBlock(
+                    ResAttnBlock(
                         in_channels, out_channels, time_dim, is_attn[i], attn_num_heads
                     )
                 )
                 in_channels = out_channels
-            self.down[f"layer{i}_ResNAttn"] = nn.ModuleList(down_block)
+            self.down[f"layer{i}_down_Res_Attn"] = nn.ModuleList(down_block)
 
             # Down sample at all resolutions except the last
             if i < self.n_resolutions - 1:
                 self.down[f"layer{i}_downsample"] = Downsample(in_channels)
 
-        # # Middle block
-        # self.middle = MiddleBlock(
-        #     out_channels,
-        #     hidden_dim * 4,
-        # )
+        # Second half of U-Net - increasing resolution
+        self.up = nn.ModuleDict()
+        for i in reversed(range(self.n_resolutions)):
+            up_block = []
+            for j in range(n_blocks[i] - 1):  # last block has to reduce the n_channels
+                if i < self.n_resolutions - 1 and j == 0:
+                    # The input has `in_channels + out_channels` because we concatenate the
+                    # output of the same resolution from the first half of the U-Net
+                    up_block.append(
+                        ResAttnBlock(
+                            in_channels + out_channels,
+                            out_channels,
+                            time_dim,
+                            is_attn[i],
+                            attn_num_heads,
+                        )
+                    )
+                    continue
+                up_block.append(
+                    ResAttnBlock(
+                        in_channels, out_channels, time_dim, is_attn[i], attn_num_heads
+                    )
+                )
+            out_channels = in_channels // ch_mults[i]
+            up_block.append(
+                ResAttnBlock(
+                    in_channels, out_channels, time_dim, is_attn[i], attn_num_heads
+                )
+            )
+            in_channels = out_channels
+            self.up[f"layer{i}_up_Res_Attn"] = nn.ModuleList(up_block)
 
-        # # #### Second half of U-Net - increasing resolution
-        # up = []
-        # # Number of channels
-        # in_channels = out_channels
-        # # For each resolution
-        # for i in reversed(range(n_resolutions)):
-        #     # `n_blocks` at the same resolution
-        #     out_channels = in_channels
-        #     for _ in range(n_blocks):
-        #         up.append(
-        #             UpBlock(in_channels, out_channels, hidden_dim * 4, is_attn[i])
-        #         )
-        #     # Final block to reduce the number of channels
-        #     out_channels = in_channels // ch_mults[i]
-        #     up.append(UpBlock(in_channels, out_channels, hidden_dim * 4, is_attn[i]))
-        #     in_channels = out_channels
-        #     # Up sample at all resolutions except last
-        #     if i > 0:
-        #         up.append(Upsample(in_channels))
+            # Up sample at all resolutions except last
+            if i > 0:
+                self.up[f"layer{i}_upsample"] = Upsample(in_channels)
 
-        # # Combine the set of modules
-        # self.up = nn.ModuleList(up)
-
-        # # Final normalization and convolution layer
-        # self.norm = nn.GroupNorm(8, hidden_dim)
-        # self.act = Swish()
-        # self.final = nn.Conv2d(
-        #     in_channels, input_channels, kernel_size=(3, 3), padding=(1, 1)
-        # )
+        # Final normalization and convolution layer
+        self.norm = nn.GroupNorm(8, hidden_dim)
+        self.act = Swish()
+        self.final = nn.Conv2d(
+            in_channels, input_channels, kernel_size=(3, 3), padding="same"
+        )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -125,113 +131,26 @@ class UNet(nn.Module):
         # `h` will store outputs at each resolution for skip connection
         h = []
         # First half of U-Net
-        print("after proj: ", x.shape)
         for i in range(self.n_resolutions):
-            for res_block in self.down[f"layer{i}_ResNAttn"]:
+            for res_block in self.down[f"layer{i}_down_Res_Attn"]:
                 x = res_block(x, t)
 
             if i < self.n_resolutions - 1:
                 h.append(x)
                 x = self.down[f"layer{i}_downsample"](x)
 
-        return x, h
-
-        # Middle (bottom)
-        x = self.middle(x, t)
-
         # Second half of U-Net
-        for m in self.up:
-            if isinstance(m, Upsample):
-                x = m(x, t)
-            else:
-                # Get the skip connection from first half of U-Net and concatenate
-                s = h.pop()
-                x = torch.cat((x, s), dim=1)
-                #
-                x = m(x, t)
+        for i in reversed(range(self.n_resolutions)):
+            for res_block in self.up[f"layer{i}_up_Res_Attn"]:
+                x = res_block(x, t)
+
+            if i > 0:
+                x = self.up[f"layer{i}_upsample"](x)
+                skip = h.pop()
+                x = torch.cat([x, skip], dim=1)
 
         # Final normalization and convolution
         return self.final(self.act(self.norm(x)))
-
-
-class DownBlock(nn.Module):
-    """
-    This combines `ResidualBlock` and `AttentionBlock`. These are used in the first half of U-Net at each resolution.
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        time_channels: int,
-        has_attn: bool,
-        attn_heads: int,
-    ):
-        super().__init__()
-        self.res = ResidualBlock(in_channels, out_channels, time_channels)
-        if has_attn:
-            self.attn = AttentionBlock(out_channels, attn_heads)
-        else:
-            self.attn = nn.Identity()
-
-    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x (torch.Tensor): Input tensor of shape `[batch_size, in_channels, height, width]`.
-            t (torch.Tensor): Time tensor of shape `[batch_size]`.
-
-        Returns:
-            torch.Tensor: Output tensor of shape `[batch_size, out_channels, height, width]`.
-        """
-        x = self.res(x, t)
-        x = self.attn(x)
-        return x
-
-
-# class UpBlock(nn.Module):
-#     """
-#     ### Up block
-#     This combines `ResidualBlock` and `AttentionBlock`. These are used in the second half of U-Net at each resolution.
-#     """
-
-#     def __init__(
-#         self, in_channels: int, out_channels: int, time_channels: int, has_attn: bool
-#     ):
-#         super().__init__()
-#         # The input has `in_channels + out_channels` because we concatenate the output of the same resolution
-#         # from the first half of the U-Net
-#         self.res = ResidualBlock(
-#             in_channels + out_channels, out_channels, time_channels
-#         )
-#         if has_attn:
-#             self.attn = AttentionBlock(out_channels)
-#         else:
-#             self.attn = nn.Identity()
-
-#     def forward(self, x: torch.Tensor, t: torch.Tensor):
-#         x = self.res(x, t)
-#         x = self.attn(x)
-#         return x
-
-
-# class MiddleBlock(nn.Module):
-#     """
-#     ### Middle block
-#     It combines a `ResidualBlock`, `AttentionBlock`, followed by another `ResidualBlock`.
-#     This block is applied at the lowest resolution of the U-Net.
-#     """
-
-#     def __init__(self, n_channels: int, time_channels: int):
-#         super().__init__()
-#         self.res1 = ResidualBlock(n_channels, n_channels, time_channels)
-#         self.attn = AttentionBlock(n_channels)
-#         self.res2 = ResidualBlock(n_channels, n_channels, time_channels)
-
-#     def forward(self, x: torch.Tensor, t: torch.Tensor):
-#         x = self.res1(x, t)
-#         x = self.attn(x)
-#         x = self.res2(x, t)
-#         return x
 
 
 class Downsample(nn.Module):
@@ -254,29 +173,24 @@ class Downsample(nn.Module):
         return self.conv(x)
 
 
-# class Upsample(nn.Module):
-#     """
-#     ### Scale up the feature map by $2 \times$
-#     """
-
-#     def __init__(self, n_channels):
-#         super().__init__()
-#         self.conv = nn.ConvTranspose2d(n_channels, n_channels, (4, 4), (2, 2), (1, 1))
-
-#     def forward(self, x: torch.Tensor, t: torch.Tensor):
-#         # `t` is not used, but it's kept in the arguments because for the attention layer function signature
-#         # to match with `ResidualBlock`.
-#         _ = t
-#         return self.conv(x)
-
-
-class Swish(nn.Module):
+class Upsample(nn.Module):
     """
-    The Swish actiavation function
+    Scale up the feature map by 2
     """
 
-    def forward(self, x):
-        return x * torch.sigmoid(x)
+    def __init__(self, n_channels):
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(n_channels, n_channels, (4, 4), (2, 2), (1, 1))
+
+    def forward(self, x: torch.Tensor):
+        """
+        Args:
+            x: Input tensor of shape `[batch_size, in_channels, in_height, in_width]`
+
+        Returns:
+            Tensor of shape `[batch_size, in_channels, out_height * 2, out_width * 2]`
+        """
+        return self.conv(x)
 
 
 class TimeEmbedding(nn.Module):
@@ -309,6 +223,40 @@ class TimeEmbedding(nn.Module):
         emb = self.linear2(emb)
 
         return emb
+
+
+class ResAttnBlock(nn.Module):
+    """
+    This combines `ResidualBlock` and `AttentionBlock`.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        time_channels: int,
+        has_attn: bool,
+        attn_heads: int,
+    ):
+        super().__init__()
+        self.res = ResidualBlock(in_channels, out_channels, time_channels)
+        if has_attn:
+            self.attn = AttentionBlock(out_channels, attn_heads)
+        else:
+            self.attn = nn.Identity()
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape `[batch_size, in_channels, height, width]`.
+            t (torch.Tensor): Time tensor of shape `[batch_size]`.
+
+        Returns:
+            torch.Tensor: Output tensor of shape `[batch_size, out_channels, height, width]`.
+        """
+        x = self.res(x, t)
+        x = self.attn(x)
+        return x
 
 
 class ResidualBlock(nn.Module):
@@ -403,19 +351,14 @@ class AttentionBlock(nn.Module):
         self.output = nn.Linear(n_heads * d_k, n_channels)
         self.scale = d_k**-0.5
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: Input tensor of shape `[batch_size, in_channels, in_height, in_width]`
-            t: Time tensor of shape `[batch_size, time_channels]`
 
         Returns:
             Tensor of shape `[batch_size, in_channels, in_height, in_width]`
         """
-        # `t` is not used, but it's kept in the arguments because for the attention layer function signature
-        # to match with `ResidualBlock`.
-        _ = t
-
         batch_size, n_channels, height, width = x.shape
         # Change `x` to shape `[batch_size, seq, n_channels]`
         x = x.view(batch_size, n_channels, -1).permute(0, 2, 1)
@@ -441,3 +384,12 @@ class AttentionBlock(nn.Module):
         res = res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
 
         return res
+
+
+class Swish(nn.Module):
+    """
+    The Swish actiavation function
+    """
+
+    def forward(self, x):
+        return x * torch.sigmoid(x)
