@@ -1,42 +1,42 @@
 from pathlib import Path
-import torch.nn as nn
 
+import torch.nn as nn
+from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 
 from ...const import CHECKPOINT_DIR
-from ...utils import convert_hydra_dir_to_timestamp
+from ...utils import DataCompose, convert_hydra_dir_to_timestamp
+from ..architectures import GlideUNet
 from .base_builder import BaseBuilder
 
 __all__ = ["GlideBuilder"]
 
 
 class GlideBuilder(BaseBuilder):
-    def __init__(self, hydra_dir: Path, **kwargs):
+    def __init__(self, hydra_dir: Path, data_list: list[DataCompose], **kwargs):
         super().__init__(**kwargs)
 
         self.time_stamp = convert_hydra_dir_to_timestamp(hydra_dir)
+        self.input_channels = len(data_list)
 
         self.info_log(f"Input Image Shape: {self.kwargs.image_shape}")
-        self.info_log(f"Patch Size: {self.kwargs.patch_size}")
-        self.info_log(f"Window Size: {self.kwargs.window_size}")
+        self.info_log(f"Glide Unet Layers: {len(self.kwargs.ch_mults)}")
 
     def _backbone_model(self) -> nn.Module:
-        return PanguModel(
-            image_shape=self.kwargs.image_shape,
-            patch_size=self.kwargs.patch_size,
-            window_size=self.kwargs.window_size,
-            upper_levels=len(self.pressure_levels),
-            upper_channels=len(self.upper_vars),
-            surface_channels=len(self.surface_vars),
-            embed_dim=self.kwargs.embed_dim,
-            heads=self.kwargs.heads,
-            depths=self.kwargs.depths,
-            max_drop_path_ratio=self.kwargs.max_drop_path_ratio,
-            dropout_rate=self.kwargs.dropout_rate,
-            smoothing_kernel_size=self.kwargs.smoothing_kernel_size,
-            segmented_smooth_boundary_width=self.kwargs.segmented_smooth_boundary_width,
+        return GlideUNet(
+            input_channels=self.input_channels,
+            hidden_dim=self.kwargs.hidden_dim,
+            ch_mults=self.kwargs.ch_mults,
+            is_attn=self.kwargs.is_attn,
+            attn_num_heads=self.kwargs.attn_num_heads,
         )
+
+    def build_model(self) -> LightningModule:
+        raise NotImplementedError
+
+    def build_trainer(self) -> Trainer:
+        raise NotImplementedError
 
     def checkpoint_callback(self) -> ModelCheckpoint:
         return ModelCheckpoint(

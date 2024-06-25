@@ -2,10 +2,10 @@ import unittest
 
 import torch
 
-from .unet import AttentionBlock, Downsample, ResidualBlock, UNet, Upsample
+from .glide_unet import GlideUNet, ResidualBlock
 
 
-class UnetTest(unittest.TestCase):
+class GlideUNetTest(unittest.TestCase):
     def test_unet(self):
         batch_size = 16
         channels = 3
@@ -19,8 +19,12 @@ class UnetTest(unittest.TestCase):
         x = torch.randn(input_shape)
         x = x.cuda()
 
+        # time step for diffusion
+        t = torch.randint(0, 1000, (batch_size,))
+        t = t.cuda()
+
         # model
-        model = UNet(
+        model = GlideUNet(
             input_channels=channels,
             hidden_dim=hidden_dim,
             ch_mults=ch_mults,
@@ -30,47 +34,9 @@ class UnetTest(unittest.TestCase):
         model = model.cuda()
 
         with torch.no_grad():
-            y = model(x)
+            y = model(x, t)
 
         self.assertEqual(x.shape, y.shape)
-
-
-class DownsampleTest(unittest.TestCase):
-    def test_downsample(self):
-        channels = 3
-
-        # input
-        x = torch.randn((16, channels, 128, 128))
-        x = x.cuda()
-
-        # model
-        downsample = Downsample(channels)
-        downsample = downsample.cuda()
-
-        with torch.no_grad():
-            y = downsample(x)
-
-        self.assertEqual(x.size(-2) / 2, y.size(-2))
-        self.assertEqual(x.size(-1) / 2, y.size(-1))
-
-
-class UpsampleTest(unittest.TestCase):
-    def test_upsample(self):
-        channels = 3
-
-        # input
-        x = torch.randn((16, channels, 128, 128))
-        x = x.cuda()
-
-        # model
-        upsample = Upsample(channels)
-        upsample = upsample.cuda()
-
-        with torch.no_grad():
-            y = upsample(x)
-
-        self.assertEqual(x.size(-2) * 2, y.size(-2))
-        self.assertEqual(x.size(-1) * 2, y.size(-1))
 
 
 class ResidualBlockTest(unittest.TestCase):
@@ -98,38 +64,21 @@ class ResidualBlockTest(unittest.TestCase):
             # input
             x = torch.randn((self.batch_size, in_channels, self.H, self.W))
             x = x.cuda()
+            t_emb = torch.randn((self.batch_size, time_channels))
+            t_emb = t_emb.cuda()
 
             # model
             residual_block = ResidualBlock(in_channels, out_channels, time_channels)
             residual_block = residual_block.cuda()
 
             with torch.no_grad():
-                y = residual_block(x)
+                y = residual_block(x, t_emb)
 
             self.assertEqual(
                 y.shape, torch.Size([self.batch_size, out_channels, self.H, self.W])
             )
 
 
-class AttentionBlockTest(unittest.TestCase):
-    def test_attention_block(self):
-        in_channels = 128
-        attn_num_heads = 8
-
-        # input
-        x = torch.randn((16, in_channels, 32, 32))
-        x = x.cuda()
-
-        # model
-        attention_block = AttentionBlock(in_channels, attn_num_heads)
-        attention_block = attention_block.cuda()
-
-        with torch.no_grad():
-            y = attention_block(x)
-
-        self.assertEqual(x.shape, y.shape)
-
-
 if __name__ == "__main__":
-    # CLI: python -m src.models.architectures.unet_test
+    # CLI: python -m src.models.architectures.glide_unet_test
     unittest.main(verbosity=2)

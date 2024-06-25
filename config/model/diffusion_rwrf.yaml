@@ -1,1 +1,5 @@
-model_name: GLIDE
+model_name: Glide
+hidden_dim: 128
+ch_mults: [1, 2, 2, 1]
+is_attn: [False, False, False, True]
+attn_num_heads: 8
