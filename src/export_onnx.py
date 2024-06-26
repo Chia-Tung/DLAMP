@@ -36,7 +36,7 @@ def main(cfg: DictConfig) -> None:
     # export onnx
     pl_module = pl_module.cuda()
     pl_module.to_onnx(
-        file_path="./export/model.onnx",
+        file_path=f"./export/{cfg.model.model_name}_model.onnx",
         input_sample=(inp_data["upper_air"], inp_data["surface"]),
         export_params=True,
         verbose=False,
