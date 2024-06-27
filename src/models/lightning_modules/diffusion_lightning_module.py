@@ -1,48 +1,162 @@
 import lightning as L
+import onnxruntime as ort
 import torch
 import torch.nn as nn
+from einops import rearrange
+from torch.utils.data import DataLoader
 
 
 class DiffusionLightningModule(L.LightningModule):
-    def __init__(self):
+    def __init__(self, *, test_dataloader, backbone_model, regression_model, **kwargs):
         super().__init__()
+        self.save_hyperparameters(
+            ignore=["test_dataloader", "backbone_model", "regression_model"]
+        )
 
-    def forward(self, *args, **kwargs):
-        pass
+        self._test_dataloader: DataLoader = test_dataloader
+        self.backbone_model: nn.Module = backbone_model
+        self.regress_ort: ort.InferenceSession = regression_model
+
+        # DDPM
+        self.beta = self.sigmoid_beta_schedule(
+            self.hparams.timesteps, self.hparams.beta_start, self.hparams.beta_end
+        )
+
+    def forward(self, noisy_img, time_step, condtion) -> torch.Tensor:
+        """
+        Args:
+            noisy_img (torch.Tensor): (B, C, H, W)
+            time_step (torch.Tensor): (B,)
+            condtion (torch.Tensor): (B, C, H, W)
+
+        Returns:
+            torch.Tensor: the predict noist with shape (B, C, H, W)
+        """
+        return self.backbone_model(noisy_img, time_step, condtion)
 
     def configure_optimizers(self):
         pass
 
-    def common_step(self, *args, **kwargs):
-        pass
+    def common_step(self, inp_data, target):
+        """
+        Args:
+            inp_data (dict): A dictionary containing the input data, like:
+                {
+                    'upper_air': torch.Tensor (B, Lv, H, W, C),
+                    'surface': torch.Tensor (B, 1, H, W, C)
+                }
+            target (dict): A dictionary containing the target data, like:
+                {
+                    'upper_air': torch.Tensor (B, Lv, H, W, C),
+                    'surface': torch.Tensor (B, 1, H, W, C)
+                }
 
-    def training_step(self, *args, **kwargs):
+        Returns:
+            loss: the total loss
+        """
+        ort_inputs = {
+            self.regress_ort.get_inputs()[0].name: inp_data["upper_air"].cpu().numpy(),
+            self.regress_ort.get_inputs()[1].name: inp_data["surface"].cpu().numpy(),
+        }
+        first_guess_upper, first_guess_surface = self.regress_ort.run(None, ort_inputs)
+        first_guess = self.restruct_dimension(first_guess_upper, first_guess_surface)
+        target = self.restruct_dimension(target["upper_air"], target["surface"])
+
+        # DDPM
+        x_0 = target - first_guess  # (B, C, H, W)
+        t = torch.randint(
+            0, self.hparams.timesteps, (self.hparams.batch_size,), dtype=torch.long
+        ).cuda()  # (B,)
+        x_t, noise = self.q_xt_x0(x_0, t)
+        pred_noise = self(x_t, t, first_guess)
+
+        # CRPS Loss
+        return pred_noise
+
+    def training_step(self, batch, batch_idx):
+        inp_data, target = batch
+        self.common_step(inp_data, target)
         pass
 
     def validation_step(self, *args, **kwargs):
         pass
 
-    def forward_process(self, x_0, t):
-        # precalculations
-        betas = self.linear_schedule()
-        alphas = 1 - betas
+    # ============== the following functions are not coherent from LightningModule ==============
+    # ============== however they are critical for training DDPM models            ==============
 
-        alphas_cumprod = torch.cumprod(alphas, dim=0)
-        sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
-        sqrt_one_minus_alphas_cumprod = torch.sqrt(1 - alphas_cumprod)
+    def restruct_dimension(self, x_upper, x_surface):
+        """
+        Args:
+            x_upper (torch.Tensor): Tensor of shape (B, Lv, H, W, C1)
+            x_surface (torch.Tensor): Tensor of shape (B, 1, H, W, C2)
 
-        # 回傳與X_0相同size的noise tensor，也就是reparameterization的epsilon
-        noise = torch.randn_like(x_0)
-        sqrt_alphas_cumprod_t = sqrt_alphas_cumprod[t]
-        sqrt_one_minus_alphas_cumprod_t = sqrt_one_minus_alphas_cumprod[t]
+        Returns:
+            torch.Tensor: Tensor of shape (B, Lv*C1+C2, H, W)
+        """
+        x_upper = rearrange(x_upper, "b z h w c -> b (z c) h w")
+        x_surface = rearrange(x_surface, "b 1 h w c -> b c h w")
+        x = torch.cat([x_upper, x_surface], dim=1)
+        return x
 
-        return (
-            sqrt_alphas_cumprod_t * x_0 + sqrt_one_minus_alphas_cumprod_t * noise,
-            noise,
+    def gather(self, consts: torch.Tensor, t: torch.Tensor, x_dim: int):
+        """
+        Gather consts for t and reshape to feature map shape
+
+        Args:
+            consts (torch.Tensor): Tensor of shape (num_diffusion_steps,)
+            t (torch.Tensor): Tensor of shape (batch_size,)
+            x_dim (int): Number of dimensions of the input image
+
+        Returns:
+            torch.Tensor: Tensor of shape (batch_size, 1, 1, 1)
+        """
+        c = consts.gather(-1, t)
+        return c.reshape(-1, *((1,) * (x_dim - 1)))
+
+    def q_xt_xtminus1(self, xtminus1: torch.Tensor, t: torch.Tensor):
+        # √(1−βt)*xtm1
+        mean = self.gather(1.0 - self.beta, t, xtminus1.dim()) ** 0.5 * xtminus1
+        # βt I
+        var = self.gather(self.beta, t, xtminus1.dim())
+        # Noise shaped like xtm1
+        eps = torch.randn_like(xtminus1)
+        return mean + (var**0.5) * eps, eps
+
+    def q_xt_x0(self, x0: torch.Tensor, t: torch.Tensor):
+        alpha = 1.0 - self.beta
+        alpha_bar = torch.cumprod(alpha, dim=0)
+        mean = self.gather(alpha_bar, t, x0.dim()) ** 0.5 * x0
+        var = 1 - self.gather(alpha_bar, t, x0.dim())
+        eps = torch.randn_like(x0).to(x0.device)
+        return mean + (var**0.5) * eps, eps
+
+    def p_xt(self, xt, noise, t):
+        alpha = 1.0 - self.beta
+        alpha_bar = torch.cumprod(alpha, dim=0)
+        alpha_t = self.gather(alpha, t)
+        alpha_bar_t = self.gather(alpha_bar, t)
+        eps_coef = (1 - alpha_t) / (1 - alpha_bar_t) ** 0.5
+        mean = 1 / (alpha_t**0.5) * (xt - eps_coef * noise)  # Note minus sign
+        var = self.gather(self.beta, t)
+        eps = torch.randn(xt.shape, device=xt.device)
+        return mean + (var**0.5) * eps
+
+    def cosine_beta_schedule(self, timesteps, s=0.008):
+        steps = timesteps + 1
+        x = torch.linspace(0, timesteps, steps)
+        alphas_cumprod = (
+            torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
         )
+        alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+        betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+        return torch.clip(betas, 0.0001, 0.9999)
 
-    def linear_schedule(self, timesteps=500, start=0.0001, end=0.02):
-        """
-        return a tensor of a linear schedule
-        """
-        return torch.linspace(start, end, timesteps)
+    def linear_beta_schedule(self, timesteps, beta_start, beta_end):
+        return torch.linspace(beta_start, beta_end, timesteps)
+
+    def quadratic_beta_schedule(self, timesteps, beta_start, beta_end):
+        return torch.linspace(beta_start**0.5, beta_end**0.5, timesteps) ** 2
+
+    def sigmoid_beta_schedule(self, timesteps, beta_start, beta_end):
+        betas = torch.linspace(-6, 6, timesteps)
+        return torch.sigmoid(betas) * (beta_end - beta_start) + beta_start

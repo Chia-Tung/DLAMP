@@ -44,18 +44,26 @@ class GlideUNet(UNet):
         time_dim = hidden_dim * reduce(lambda x, y: x * y, ch_mults)
         self.time_emb = TimeEmbedding(time_dim)
 
+        # Projection for condition data
+        self.proj_cond = nn.Conv2d(input_channels, hidden_dim, (3, 3), padding="same")
+
         # First half of U-Net - decreasing resolution
         self.down = nn.ModuleDict()
         out_channels = in_channels = hidden_dim
 
         for i in range(self.n_resolutions):
             out_channels = in_channels * ch_mults[i]
-
             down_block = []
             for _ in range(self.n_blocks[i]):
                 down_block.append(
                     ResAttnBlock(
-                        in_channels, out_channels, time_dim, is_attn[i], attn_num_heads
+                        i,
+                        in_channels,
+                        out_channels,
+                        time_dim,
+                        hidden_dim,
+                        is_attn[i],
+                        attn_num_heads,
                     )
                 )
                 in_channels = out_channels
@@ -69,57 +77,55 @@ class GlideUNet(UNet):
         self.up = nn.ModuleDict()
         for i in reversed(range(self.n_resolutions)):
             up_block = []
-            # last block has to reduce the n_channels by a factor of 2
-            for j in range(self.n_blocks[i] - 1):
+            for j in range(self.n_blocks[i]):
                 if i < self.n_resolutions - 1 and j == 0:
                     # The input has `in_channels + out_channels` because we concatenate the
                     # output of the same resolution from the first half of the U-Net
-                    up_block.append(
-                        ResAttnBlock(
-                            in_channels + out_channels,
-                            out_channels,
-                            time_dim,
-                            is_attn[i],
-                            attn_num_heads,
-                        )
-                    )
-                    continue
+                    in_channels = in_channels + out_channels
+                if j == self.n_blocks[i] - 1:
+                    # last block has to reduce the n_channels by a factor of 2
+                    out_channels = in_channels // ch_mults[i]
+
                 up_block.append(
                     ResAttnBlock(
-                        in_channels, out_channels, time_dim, is_attn[i], attn_num_heads
+                        i,
+                        in_channels,
+                        out_channels,
+                        time_dim,
+                        hidden_dim,
+                        is_attn[i],
+                        attn_num_heads,
                     )
                 )
-            out_channels = in_channels // ch_mults[i]
-            up_block.append(
-                ResAttnBlock(
-                    in_channels, out_channels, time_dim, is_attn[i], attn_num_heads
-                )
-            )
-            in_channels = out_channels
+                in_channels = out_channels
             self.up[f"layer{i}_up_Res_Attn"] = nn.ModuleList(up_block)
 
             # Up sample at all resolutions except last
             if i > 0:
                 self.up[f"layer{i}_upsample"] = Upsample(in_channels)
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor
+    ) -> torch.Tensor:
         """
         Args:
             x (torch.Tensor): Input tensor of shape `[batch_size, in_channels, height, width]`.
             t (torch.Tensor): Time tensor of shape `[batch_size]`.
+            cond (torch.Tensor): Condition tensor of shape `[batch_size, in_channels, height, width]`.
 
         Returns:
             torch.Tensor: Output tensor of shape `[batch_size, in_channels, height, width]`.
         """
-        t = self.time_emb(t)
         x = self.proj(x)
+        cond = self.proj_cond(cond)
+        t = self.time_emb(t)
 
         # `h` will store outputs at each resolution for skip connection
         h = []
         # First half of U-Net
         for i in range(self.n_resolutions):
             for res_block in self.down[f"layer{i}_down_Res_Attn"]:
-                x = res_block(x, t)
+                x = res_block(x, t, cond)
 
             if i < self.n_resolutions - 1:
                 h.append(x)
@@ -128,7 +134,7 @@ class GlideUNet(UNet):
         # Second half of U-Net
         for i in reversed(range(self.n_resolutions)):
             for res_block in self.up[f"layer{i}_up_Res_Attn"]:
-                x = res_block(x, t)
+                x = res_block(x, t, cond)
 
             if i > 0:
                 x = self.up[f"layer{i}_upsample"](x)
@@ -178,29 +184,48 @@ class ResAttnBlock(nn.Module):
 
     def __init__(
         self,
+        layer_idx: int,
         in_channels: int,
         out_channels: int,
         time_channels: int,
+        hidden_dim: int,
         has_attn: bool,
         attn_heads: int,
     ):
         super().__init__()
         self.res = ResidualBlock(in_channels, out_channels, time_channels)
         if has_attn:
+            # H, W match the downsampled/upsampled resolution
+            shrink_factor = 2**layer_idx
+            self.proj_cond = nn.Conv2d(
+                hidden_dim,
+                out_channels,
+                kernel_size=shrink_factor,
+                stride=shrink_factor,
+                padding=0,
+                bias=False,
+            )
             self.attn = AttentionBlock(out_channels, attn_heads)
         else:
+            self.proj_cond = None
             self.attn = nn.Identity()
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor
+    ) -> torch.Tensor:
         """
         Args:
             x (torch.Tensor): Input tensor of shape `[batch_size, in_channels, height, width]`.
             t (torch.Tensor): Time tensor of shape `[batch_size]`.
+            cond (torch.Tensor): Condition tensor of shape `[batch_size, hidden_dim, height, width]`.
 
         Returns:
             torch.Tensor: Output tensor of shape `[batch_size, out_channels, height, width]`.
         """
         x = self.res(x, t)
+        if self.proj_cond is not None:
+            cond = self.proj_cond(cond)
+            x += cond
         x = self.attn(x)
         return x
 

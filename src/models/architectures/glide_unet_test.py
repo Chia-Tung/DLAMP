@@ -23,6 +23,10 @@ class GlideUNetTest(unittest.TestCase):
         t = torch.randint(0, 1000, (batch_size,))
         t = t.cuda()
 
+        # condition input
+        cond = torch.randn(input_shape)
+        cond = cond.cuda()
+
         # model
         model = GlideUNet(
             input_channels=channels,
@@ -34,7 +38,7 @@ class GlideUNetTest(unittest.TestCase):
         model = model.cuda()
 
         with torch.no_grad():
-            y = model(x, t)
+            y = model(x, t, cond)
 
         self.assertEqual(x.shape, y.shape)
 

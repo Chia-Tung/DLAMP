@@ -1,13 +1,16 @@
 from pathlib import Path
 
+import onnxruntime as ort
 import torch.nn as nn
 from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
+from torch.utils.data import DataLoader
 
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
 from ..architectures import GlideUNet
+from ..lightning_modules import DiffusionLightningModule
 from .base_builder import BaseBuilder
 
 __all__ = ["GlideBuilder"]
@@ -32,8 +35,37 @@ class GlideBuilder(BaseBuilder):
             attn_num_heads=self.kwargs.attn_num_heads,
         )
 
-    def build_model(self) -> LightningModule:
-        raise NotImplementedError
+    def _regression_model(self) -> ort.InferenceSession:
+        assert "CUDAExecutionProvider" in ort.get_available_providers()
+
+        # An issue about onnxruntime for cuda12.x
+        # ref: https://github.com/microsoft/onnxruntime/issues/8313#issuecomment-1486097717
+        _default_session_options = ort.capi._pybind_state.get_default_session_options()
+
+        def get_default_session_options_new():
+            _default_session_options.inter_op_num_threads = 1
+            _default_session_options.intra_op_num_threads = 1
+            return _default_session_options
+
+        ort.capi._pybind_state.get_default_session_options = (
+            get_default_session_options_new
+        )
+
+        return ort.InferenceSession(
+            self.kwargs.regression_onnx_path,
+            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+        )
+
+    def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
+        return DiffusionLightningModule(
+            test_dataloader=test_dataloader,
+            backbone_model=self._backbone_model(),
+            regression_model=self._regression_model(),
+            timesteps=self.kwargs.timesteps,
+            beta_start=self.kwargs.beta_start,
+            beta_end=self.kwargs.beta_end,
+            batch_size=self.kwargs.batch_size,
+        )
 
     def build_trainer(self) -> Trainer:
         raise NotImplementedError

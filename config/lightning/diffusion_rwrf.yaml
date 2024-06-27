@@ -8,6 +8,7 @@ sampling_rate: 1
 batch_size: 4
 workers: 16
 # LightningModule
+regression_onnx_path: "./export/Pangu_model.onnx"
 image_shape: [224, 224]
 optim_config:
   name: AdamW
