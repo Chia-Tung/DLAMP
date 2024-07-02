@@ -5,6 +5,8 @@ import torch.nn as nn
 from einops import rearrange
 from torch.utils.data import DataLoader
 
+from ..loss_fn import CRPS
+
 
 class DiffusionLightningModule(L.LightningModule):
     def __init__(self, *, test_dataloader, backbone_model, regression_model, **kwargs):
@@ -16,6 +18,7 @@ class DiffusionLightningModule(L.LightningModule):
         self._test_dataloader: DataLoader = test_dataloader
         self.backbone_model: nn.Module = backbone_model
         self.regress_ort: ort.InferenceSession = regression_model
+        self.criterion = CRPS()
 
         # DDPM
         self.beta = self.sigmoid_beta_schedule(
@@ -52,7 +55,7 @@ class DiffusionLightningModule(L.LightningModule):
                 }
 
         Returns:
-            loss: the total loss
+            loss: the CRPS loss
         """
         ort_inputs = {
             self.regress_ort.get_inputs()[0].name: inp_data["upper_air"].cpu().numpy(),
@@ -69,9 +72,8 @@ class DiffusionLightningModule(L.LightningModule):
         ).cuda()  # (B,)
         x_t, noise = self.q_xt_x0(x_0, t)
         pred_noise = self(x_t, t, first_guess)
-
-        # CRPS Loss
-        return pred_noise
+        loss = self.criterion(noise, pred_noise)
+        return loss
 
     def training_step(self, batch, batch_idx):
         inp_data, target = batch
@@ -81,8 +83,8 @@ class DiffusionLightningModule(L.LightningModule):
     def validation_step(self, *args, **kwargs):
         pass
 
-    # ============== the following functions are not coherent from LightningModule ==============
-    # ============== however they are critical for training DDPM models            ==============
+    # ============== the following functions are not coherent w/ LightningModule ==============
+    # ============== however they are critical for training DDPM models          ==============
 
     def restruct_dimension(self, x_upper, x_surface):
         """

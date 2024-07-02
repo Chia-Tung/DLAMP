@@ -8,6 +8,10 @@ from omegaconf import DictConfig, OmegaConf
 from src.managers import DataManager
 from src.utils import DataCompose
 
+"""
+This is a sample code for quickly inference onnx model.
+Should be merged into `./inference/`.
+"""
 
 @hydra.main(version_base=None, config_path="../config", config_name="predict")
 def main(cfg: DictConfig) -> None:
