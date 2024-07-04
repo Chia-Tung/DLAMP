@@ -6,6 +6,7 @@ from einops import rearrange
 from torch.utils.data import DataLoader
 
 from ..loss_fn import CRPS
+from ..model_utils import get_scheduler_with_warmup
 
 
 class DiffusionLightningModule(L.LightningModule):
@@ -38,7 +39,27 @@ class DiffusionLightningModule(L.LightningModule):
         return self.backbone_model(noisy_img, time_step, condtion)
 
     def configure_optimizers(self):
-        pass
+        # set optimizer
+        optimizer = getattr(torch.optim, self.hparams.optim_config.name)(
+            self.parameters(), **self.hparams.optim_config.args
+        )
+
+        # set learning rate schedule
+        lr_scheduler: torch.optim.lr_scheduler.LambdaLR = get_scheduler_with_warmup(
+            optimizer,
+            training_steps=int(self.trainer.estimated_stepping_batches),
+            schedule_type=self.hparams.lr_schedule.name,
+            **self.hparams.lr_schedule.args,
+        )
+
+        lr_scheduler_config = {
+            "scheduler": lr_scheduler,
+            "interval": "step",
+            "frequency": 1,
+            "name": "customized_lr",
+        }
+
+        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
 
     def common_step(self, inp_data, target):
         """
@@ -62,14 +83,18 @@ class DiffusionLightningModule(L.LightningModule):
             self.regress_ort.get_inputs()[1].name: inp_data["surface"].cpu().numpy(),
         }
         first_guess_upper, first_guess_surface = self.regress_ort.run(None, ort_inputs)
-        first_guess = self.restruct_dimension(first_guess_upper, first_guess_surface)
+        first_guess = self.restruct_dimension(
+            first_guess_upper, first_guess_surface, is_numpy=True
+        )
         target = self.restruct_dimension(target["upper_air"], target["surface"])
 
         # DDPM
         x_0 = target - first_guess  # (B, C, H, W)
         t = torch.randint(
             0, self.hparams.timesteps, (self.hparams.batch_size,), dtype=torch.long
-        ).cuda()  # (B,)
+        ).to(
+            target.device
+        )  # (B,)
         x_t, noise = self.q_xt_x0(x_0, t)
         pred_noise = self(x_t, t, first_guess)
         loss = self.criterion(noise, pred_noise)
@@ -77,24 +102,35 @@ class DiffusionLightningModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         inp_data, target = batch
-        self.common_step(inp_data, target)
-        pass
+        loss = self.common_step(inp_data, target)
+        self.log("train_loss", loss, on_step=True, prog_bar=True, sync_dist=True)
+        return loss
 
-    def validation_step(self, *args, **kwargs):
-        pass
+    def validation_step(self, batch, batch_idx):
+        inp_data, target = batch
+        loss = self.common_step(inp_data, target)
+        self.log(
+            "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
+        )
+        return loss
 
     # ============== the following functions are not coherent w/ LightningModule ==============
     # ============== however they are critical for training DDPM models          ==============
 
-    def restruct_dimension(self, x_upper, x_surface):
+    def restruct_dimension(self, x_upper, x_surface, is_numpy=False):
         """
         Args:
             x_upper (torch.Tensor): Tensor of shape (B, Lv, H, W, C1)
             x_surface (torch.Tensor): Tensor of shape (B, 1, H, W, C2)
+            is_numpy (bool, optional): Whether the input is in numpy format
 
         Returns:
             torch.Tensor: Tensor of shape (B, Lv*C1+C2, H, W)
         """
+        if is_numpy:
+            x_upper = torch.from_numpy(x_upper)
+            x_surface = torch.from_numpy(x_surface)
+
         x_upper = rearrange(x_upper, "b z h w c -> b (z c) h w")
         x_surface = rearrange(x_surface, "b 1 h w c -> b c h w")
         x = torch.cat([x_upper, x_surface], dim=1)

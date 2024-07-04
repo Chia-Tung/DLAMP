@@ -13,6 +13,7 @@ This is a sample code for quickly inference onnx model.
 Should be merged into `./inference/`.
 """
 
+
 @hydra.main(version_base=None, config_path="../config", config_name="predict")
 def main(cfg: DictConfig) -> None:
     OmegaConf.set_struct(cfg, True)
@@ -56,7 +57,7 @@ def main(cfg: DictConfig) -> None:
     }
     start = time.time()
     pred_upper, pred_surface = ort_session.run(None, ort_inputs)
-    print(pred_upper.shape, pred_surface.shape)
+    print(type(pred_upper), pred_upper.shape, pred_surface.shape)
     print(f"execution time: {time.time() - start:.5f} sec")
 
 
