@@ -97,13 +97,14 @@ class PanguBuilder(BaseBuilder):
         return Trainer(
             num_sanity_val_steps=2,
             benchmark=True,
-            fast_dev_run=self.kwargs.fast_dev_run,  # use n batch(es) to fast run through train/valid, no logging, no checkpoint, no max_epoch
+            fast_dev_run=self.kwargs.fast_dev_run,  # use n batch(es) to fast run through train/valid, no checkpoint, no max_epoch
             logger=logger,
             check_val_every_n_epoch=1,
-            log_every_n_steps=self.kwargs.log_every_n_steps,
+            log_every_n_steps=self.kwargs.log_every_n_steps,  # only affect train_loss
             # -1: infinite epochs, None: default 1000 epochs
             max_epochs=getattr(self.kwargs, "max_epochs", None),
-            min_steps=getattr(self.kwargs, "min_steps", -1),  # max_epoch must be valid
+            # max_epoch must be valid, min_steps is prior to early stopping
+            min_steps=getattr(self.kwargs, "min_steps", -1),
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
             limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
             accelerator="gpu",

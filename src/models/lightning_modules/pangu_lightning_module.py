@@ -102,7 +102,12 @@ class PanguLightningModule(L.LightningModule):
         inp_data, target = batch
         loss, _, (mae_upper, mae_surface) = self.common_step(inp_data, target)
         self.log(
-            "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
+            "val_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
         )
         self.log_mae_for_each_element(
             "val", self.hparams.pressure_levels, self.hparams.upper_vars, mae_upper
@@ -151,7 +156,11 @@ class PanguLightningModule(L.LightningModule):
         for i, pl in enumerate(lv_names):
             for j, var in enumerate(var_names):
                 self.log(
-                    f"{prefix}_mae/{var}_{pl}", mae[i, j], on_step=True, on_epoch=False
+                    f"{prefix}_mae/{var}_{pl}",
+                    mae[i, j],
+                    on_step=False,
+                    on_epoch=True,
+                    sync_dist=True,
                 )
 
     def test_dataloader(self) -> DataLoader:

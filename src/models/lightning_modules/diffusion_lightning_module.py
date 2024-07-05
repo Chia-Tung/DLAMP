@@ -84,9 +84,16 @@ class DiffusionLightningModule(L.LightningModule):
         }
         first_guess_upper, first_guess_surface = self.regress_ort.run(None, ort_inputs)
         first_guess = self.restruct_dimension(
-            first_guess_upper, first_guess_surface, is_numpy=True
+            first_guess_upper,
+            first_guess_surface,
+            is_numpy=True,
+            device=target["upper_air"].device,
         )
         target = self.restruct_dimension(target["upper_air"], target["surface"])
+
+        # device check
+        if self.beta.device != target.device:
+            self.beta = self.beta.to(target.device)
 
         # DDPM
         x_0 = target - first_guess  # (B, C, H, W)
@@ -110,26 +117,44 @@ class DiffusionLightningModule(L.LightningModule):
         inp_data, target = batch
         loss = self.common_step(inp_data, target)
         self.log(
-            "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
+            "val_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
         )
         return loss
+
+    def test_dataloader(self) -> DataLoader:
+        """
+        Load the test dataset from external `LightningDataModule`.
+
+        The reason doing so is that the `test_dataloader` is not accessible during
+        the `trainer.fit()` loop, but we need the `test_dataloader` to record the
+        images in `LogPredictionSamplesCallback`.
+        """
+        return self._test_dataloader
 
     # ============== the following functions are not coherent w/ LightningModule ==============
     # ============== however they are critical for training DDPM models          ==============
 
-    def restruct_dimension(self, x_upper, x_surface, is_numpy=False):
+    def restruct_dimension(self, x_upper, x_surface, is_numpy=False, device=None):
         """
         Args:
             x_upper (torch.Tensor): Tensor of shape (B, Lv, H, W, C1)
             x_surface (torch.Tensor): Tensor of shape (B, 1, H, W, C2)
             is_numpy (bool, optional): Whether the input is in numpy format
+            device (torch.device, optional): Device of the output tensor
 
         Returns:
             torch.Tensor: Tensor of shape (B, Lv*C1+C2, H, W)
         """
-        if is_numpy:
-            x_upper = torch.from_numpy(x_upper)
-            x_surface = torch.from_numpy(x_surface)
+        if is_numpy and device is not None:
+            x_upper = torch.from_numpy(x_upper).to(device)
+            x_surface = torch.from_numpy(x_surface).to(device)
+        elif is_numpy and device is None:
+            raise ValueError("If `is_numpy` is True, `device` must be provided.")
 
         x_upper = rearrange(x_upper, "b z h w c -> b (z c) h w")
         x_surface = rearrange(x_surface, "b 1 h w c -> b c h w")

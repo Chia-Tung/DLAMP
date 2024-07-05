@@ -1,10 +1,16 @@
 from pathlib import Path
 
 import onnxruntime as ort
+import torch
 import torch.nn as nn
 from lightning import LightningModule, Trainer
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import (
+    EarlyStopping,
+    LearningRateMonitor,
+    ModelCheckpoint,
+)
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.profilers import PyTorchProfiler
 from torch.utils.data import DataLoader
 
 from ...const import CHECKPOINT_DIR
@@ -65,10 +71,52 @@ class GlideBuilder(BaseBuilder):
             beta_start=self.kwargs.beta_start,
             beta_end=self.kwargs.beta_end,
             batch_size=self.kwargs.batch_size,
+            optim_config=self.kwargs.optim_config,
+            lr_schedule=self.kwargs.lr_schedule,
         )
 
-    def build_trainer(self) -> Trainer:
-        raise NotImplementedError
+    def build_trainer(self, logger) -> Trainer:
+        num_gpus = (
+            torch.cuda.device_count()
+            if self.kwargs.num_gpus is None
+            else self.kwargs.num_gpus
+        )
+
+        callbacks = []
+        callbacks.append(LearningRateMonitor())
+        callbacks.append(self.checkpoint_callback())
+        # if self.kwargs.log_image_every_n_steps is not None:
+        #     callbacks.append(
+        #         LogPredictionSamplesCallback(self.kwargs.log_image_every_n_steps)
+        #     )
+        if self.kwargs.early_stop_patience is not None:
+            callbacks.append(
+                EarlyStopping(
+                    monitor="val_loss_epoch", patience=self.kwargs.early_stop_patience
+                )
+            )
+
+        return Trainer(
+            num_sanity_val_steps=2,
+            benchmark=True,
+            fast_dev_run=self.kwargs.fast_dev_run,  # use n batch(es) to fast run through train/valid, no checkpoint, no max_epoch
+            logger=logger,
+            check_val_every_n_epoch=1,
+            log_every_n_steps=self.kwargs.log_every_n_steps,  # only affect train_loss
+            # -1: infinite epochs, None: default 1000 epochs
+            max_epochs=getattr(self.kwargs, "max_epochs", None),
+            # max_epoch must be valid, min_steps is prior to early stopping
+            min_steps=getattr(self.kwargs, "min_steps", -1),
+            limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
+            limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
+            accelerator="gpu",
+            devices=[i for i in range(num_gpus)],
+            strategy="auto" if num_gpus <= 1 else "ddp",
+            callbacks=callbacks,
+            profiler=PyTorchProfiler(
+                dirpath="./profiler", filename=f"{self.__class__.__name__}"
+            ),
+        )
 
     def checkpoint_callback(self) -> ModelCheckpoint:
         return ModelCheckpoint(

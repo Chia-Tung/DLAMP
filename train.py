@@ -45,11 +45,7 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(
         model,
         data_manager,
-        ckpt_path=(
-            cfg.lightning.resume_from_checkpoint
-            if cfg.lightning.resume_from_checkpoint
-            else None
-        ),
+        ckpt_path=getattr(cfg.lightning, "resume_from_checkpoint", None),
     )
 
 

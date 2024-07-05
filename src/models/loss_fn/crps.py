@@ -3,23 +3,19 @@ import torch.nn as nn
 
 
 class CRPS(nn.Module):
-    """
-    https://github.com/phantares/downscaling/blob/main/src/model_architectures/loss_functions/CRPS.py
-    """
-
     def __init__(self, integral_number: int = 1000):
         super().__init__()
         self.number = integral_number
 
-    def forward(self, prediction, target):
-        return self._calculate_crps(torch.flatten(prediction), torch.flatten(target))
+    def forward(self, prediction: torch.Tensor, target: torch.Tensor):
+        return self._calculate_crps(prediction.flatten(), target.flatten())
 
-    def _calculate_crps(self, prediction, target):
-        x = torch.linspace(
-            float(min(torch.min(prediction), torch.min(target))),
-            float(max(torch.max(prediction), torch.max(target))),
-            self.number,
-        )
+    def _calculate_crps(self, prediction: torch.Tensor, target: torch.Tensor):
+        min_val = torch.min(torch.min(prediction), torch.min(target))
+        max_val = torch.max(torch.max(prediction), torch.max(target))
+
+        x = torch.linspace(min_val, max_val, self.number, device=prediction.device)
+        x = x.to(prediction.dtype)
 
         cdf_prediction = self._calculate_cdf(x, prediction)
         cdf_target = self._calculate_cdf(x, target)
@@ -27,6 +23,10 @@ class CRPS(nn.Module):
 
         return torch.trapz(diff**2, x)
 
-    def _calculate_cdf(self, x, data):
-        cdf = [torch.mean((data <= value).float()) for value in x]
-        return torch.tensor(cdf)
+    def _calculate_cdf(self, x: torch.Tensor, data: torch.Tensor):
+        # use sigmoid to approximate the cdf, since genuine method: 
+        # return torch.mean((data.unsqueeze(1) <= x.unsqueeze(0)).float(), dim=0)
+        # is not continuous.
+        return torch.mean(
+            torch.sigmoid((x.unsqueeze(0) - data.unsqueeze(1)) * 1000), dim=0
+        )
