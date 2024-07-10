@@ -5,8 +5,8 @@ split_config:
   ratios: [6, 2, 2]
   order_by_time: True
 sampling_rate: 1
-batch_size: 4
-workers: 16
+batch_size: 1
+workers: 32
 # LightningModule
 regression_onnx_path: "./export/Pangu_model.onnx"
 image_shape: [224, 224]
@@ -21,6 +21,7 @@ lr_schedule:
     warmup_steps: 1000
 # lightning.Trainer
 num_gpus: null
+strategy: "ddp"
 fast_dev_run: False
 max_epochs: null
 min_steps: 3e5 # 300k
@@ -29,3 +30,5 @@ limit_val_batches: null
 early_stop_patience: 5
 log_image_every_n_steps: 1e4
 log_every_n_steps: 1e3
+
+# python -m train lightning.workers=8 lightning.sampling_rate=10 lightning.batch_size=1 lightning.max_epochs=1 lightning.limit_train_batches=20 lightning.limit_val_batches=20

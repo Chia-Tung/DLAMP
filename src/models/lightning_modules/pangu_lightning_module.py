@@ -102,12 +102,7 @@ class PanguLightningModule(L.LightningModule):
         inp_data, target = batch
         loss, _, (mae_upper, mae_surface) = self.common_step(inp_data, target)
         self.log(
-            "val_loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            sync_dist=True,
+            "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
         )
         self.log_mae_for_each_element(
             "val", self.hparams.pressure_levels, self.hparams.upper_vars, mae_upper

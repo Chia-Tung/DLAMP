@@ -11,6 +11,7 @@ from lightning.pytorch.callbacks import (
 )
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.profilers import PyTorchProfiler
+from lightning.pytorch.strategies import FSDPStrategy
 from torch.utils.data import DataLoader
 
 from ...const import CHECKPOINT_DIR
@@ -76,12 +77,34 @@ class GlideBuilder(BaseBuilder):
         )
 
     def build_trainer(self, logger) -> Trainer:
+        # set number of GPUs
         num_gpus = (
             torch.cuda.device_count()
             if self.kwargs.num_gpus is None
             else self.kwargs.num_gpus
         )
 
+        # distributed training strategy
+        strategy = getattr(self.kwargs, "strategy", "auto")
+        match strategy:
+            case "auto":
+                pass
+            case "ddp":
+                pass
+            case "fsdp":
+                pass
+            case "FULL_SHARD":
+                strategy = FSDPStrategy(
+                    sharding_strategy="FULL_SHARD", state_dict_type="sharded"
+                )
+            case "SHARD_GRAD_OP":
+                strategy = FSDPStrategy(
+                    sharding_strategy="SHARD_GRAD_OP", state_dict_type="sharded"
+                )
+            case _:
+                raise ValueError(f"Unknown strategy: {strategy}")
+
+        # set callbacks
         callbacks = []
         callbacks.append(LearningRateMonitor())
         callbacks.append(self.checkpoint_callback())
@@ -109,9 +132,8 @@ class GlideBuilder(BaseBuilder):
             min_steps=getattr(self.kwargs, "min_steps", -1),
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
             limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
-            accelerator="gpu",
             devices=[i for i in range(num_gpus)],
-            strategy="auto" if num_gpus <= 1 else "ddp",
+            strategy=strategy,
             callbacks=callbacks,
             profiler=PyTorchProfiler(
                 dirpath="./profiler", filename=f"{self.__class__.__name__}"

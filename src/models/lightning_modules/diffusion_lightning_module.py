@@ -117,12 +117,7 @@ class DiffusionLightningModule(L.LightningModule):
         inp_data, target = batch
         loss = self.common_step(inp_data, target)
         self.log(
-            "val_loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            sync_dist=True,
+            "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
         )
         return loss
 

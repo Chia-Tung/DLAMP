@@ -21,6 +21,7 @@ lr_schedule:
     warmup_steps: 1000
 # lightning.Trainer
 num_gpus: null
+strategy: "ddp"
 fast_dev_run: False
 max_epochs: null
 min_steps: 1e5
