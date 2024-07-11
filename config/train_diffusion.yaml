@@ -13,9 +13,6 @@ hydra:
       file:
         level: DEBUG
 
-lightning:
-  pangu_onnx: "./export/pangu_model.onnx"
-
 defaults:
   - data: rwrf
   - lightning: diffusion_rwrf
