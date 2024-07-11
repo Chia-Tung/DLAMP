@@ -151,7 +151,11 @@ class PanguLightningModule(L.LightningModule):
         for i, pl in enumerate(lv_names):
             for j, var in enumerate(var_names):
                 self.log(
-                    f"{prefix}_mae/{var}_{pl}", mae[i, j], on_step=True, on_epoch=False
+                    f"{prefix}_mae/{var}_{pl}",
+                    mae[i, j],
+                    on_step=False,
+                    on_epoch=True,
+                    sync_dist=True,
                 )
 
     def test_dataloader(self) -> DataLoader:

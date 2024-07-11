@@ -12,7 +12,7 @@ from src.utils import DataCompose
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="config", config_name="train")
+@hydra.main(version_base=None, config_path="config", config_name="train_diffusion")
 def main(cfg: DictConfig) -> None:
     hydra_oup_dir = Path(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir)
     log.info(f"Working directory: {Path.cwd()}")
@@ -42,7 +42,11 @@ def main(cfg: DictConfig) -> None:
     trainer = model_builder.build_trainer(wandb_logger)
 
     # start training
-    trainer.fit(model, data_manager)
+    trainer.fit(
+        model,
+        data_manager,
+        ckpt_path=getattr(cfg.lightning, "resume_from_checkpoint", None),
+    )
 
 
 if __name__ == "__main__":

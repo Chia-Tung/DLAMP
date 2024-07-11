@@ -55,6 +55,9 @@ def read_cwa_npfile(
     if dtype is not None:
         data = data.astype(dtype)
 
+    if is_radar:
+        data[data < 0] = 0  # set negative values to 0
+
     return data
 
 

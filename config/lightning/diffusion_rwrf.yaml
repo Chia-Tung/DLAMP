@@ -3,13 +3,13 @@ input_len: 1
 output_len: 1
 split_config:
   ratios: [6, 2, 2]
-  order_by_time: False
-sampling_rate: 3
-batch_size: 2
-workers: 16
+  order_by_time: True
+sampling_rate: 2
+batch_size: 1
+workers: 32
 # LightningModule
+regression_onnx_path: "./export/Pangu_model.onnx"
 image_shape: [224, 224]
-surface_alpha: 0.25
 optim_config:
   name: AdamW
   args:
@@ -24,10 +24,9 @@ num_gpus: null
 strategy: "ddp"
 fast_dev_run: False
 max_epochs: null
-min_steps: 1e5
+min_steps: 3e5 # 300k
 limit_train_batches: null
 limit_val_batches: null
-early_stop_patience: 10
-log_image_every_n_steps: 5000
-log_every_n_steps: 500
-resume_from_checkpoint: null
+early_stop_patience: 5
+log_image_every_n_steps: 1e4
+log_every_n_steps: 1e3

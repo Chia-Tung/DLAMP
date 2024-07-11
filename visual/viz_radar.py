@@ -127,6 +127,26 @@ class VizRadar(TwBackground):
         cbar.ax.set_title("dBZ")
         return fig, ax
 
+    def plot_1xn(
+        self,
+        lon: np.ndarray,
+        lat: np.ndarray,
+        data: list[np.ndarray],
+        grid_on: bool = False,
+    ):
+        if len(lat.shape) == 2 and len(lon.shape) == 2:
+            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
+            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
+
+        cols = len(data)
+        fig, ax = plt.subplots(1, cols, figsize=(20, 7), dpi=200, facecolor="w")
+        for j in range(cols):
+            tmp_ax = ax[j]
+            fig, tmp_ax = self.plot_bg(fig, tmp_ax, grid_on)
+            fig, tmp_ax = self._plot_radar(fig, tmp_ax, lon, lat, data[j])
+
+        return fig, ax
+
 
 if __name__ == "__main__":
     target_time = datetime(2022, 10, 16, 0)

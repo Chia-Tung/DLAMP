@@ -1,0 +1,9 @@
+model_name: Glide
+hidden_dim: 128
+ch_mults: [1, 2, 2, 1]
+is_attn: [False, False, False, True]
+attn_num_heads: 8
+# diffusion
+timesteps: 1000
+beta_start: 0.0001
+beta_end: 0.08

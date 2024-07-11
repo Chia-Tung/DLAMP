@@ -1,3 +1,3 @@
-best_ckpt: "./checkpoints/Pangu_240619_223809-epoch=191-val_loss_epoch=0.1926.ckpt"
+best_ckpt: "./checkpoints/Pangu_240622_210919-epoch=225-val_loss_epoch=0.1788.ckpt"
 output_itv:
   hours: 1
