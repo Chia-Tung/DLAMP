@@ -35,14 +35,13 @@ class LogPredictionSamplesCallback(Callback):
         )
 
         # choose cases from `src.const.EVAL_CASES`
-        cases = [datetime(2022, 9, 12), datetime(2022, 10, 16)]
+        cases = [datetime(2022, 9, 12)]  # datetime(2022, 10, 16)
         self.fig_inputs = []
         self.fig_targets = []
         for case in cases:
-            # (lv, H, W, C)
             internal_idx = custom_dataset.get_internal_index_from_dt(case)
             input, target = custom_dataset[internal_idx]
-            # (1, lv, H, W, C)
+            # (lv, H, W, C) -> (1, lv, H, W, C)
             for k in input.keys():
                 input[k] = torch.from_numpy(input[k][None]).cuda()
                 target[k] = destandardization(target[k])

@@ -4,7 +4,7 @@ output_len: 1
 split_config:
   ratios: [6, 2, 2]
   order_by_time: True
-sampling_rate: 1
+sampling_rate: 2
 batch_size: 1
 workers: 32
 # LightningModule
@@ -30,5 +30,3 @@ limit_val_batches: null
 early_stop_patience: 5
 log_image_every_n_steps: 1e4
 log_every_n_steps: 1e3
-
-# python -m train lightning.workers=8 lightning.sampling_rate=10 lightning.batch_size=1 lightning.max_epochs=1 lightning.limit_train_batches=20 lightning.limit_val_batches=20

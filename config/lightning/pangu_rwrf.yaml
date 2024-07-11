@@ -30,4 +30,4 @@ limit_val_batches: null
 early_stop_patience: 10
 log_image_every_n_steps: 5000
 log_every_n_steps: 500
-resume_from_checkpoint: "./checkpoints/Pangu_240622_151146-epoch=204-val_loss_epoch=0.1829.ckpt"
+resume_from_checkpoint: null

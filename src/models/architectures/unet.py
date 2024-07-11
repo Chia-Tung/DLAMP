@@ -264,15 +264,12 @@ class AttentionBlock(nn.Module):
     This is similar to [transformer multi-head attention](../../transformers/mha.html).
     """
 
-    def __init__(
-        self, n_channels: int, n_heads: int, d_k: int | None = None, n_groups: int = 32
-    ):
+    def __init__(self, n_channels: int, n_heads: int, d_k: int | None = None):
         """
         Args:
             n_channels: Number of channels in the input
             n_heads: Number of heads in multi-head attention
             d_k: Number of dimensions in each head. If None, it is set to `n_channels // n_heads`.
-            n_groups: Number of groups for [group normalization](../../normalization/group_norm/index.html)
 
         Returns:
             None
@@ -283,7 +280,6 @@ class AttentionBlock(nn.Module):
 
         self.n_heads = n_heads
         self.d_k = d_k
-        self.norm = nn.GroupNorm(n_groups, n_channels)
         self.projection = nn.Linear(n_channels, n_heads * d_k * 3)
         self.output = nn.Linear(n_heads * d_k, n_channels)
         self.scale = d_k**-0.5

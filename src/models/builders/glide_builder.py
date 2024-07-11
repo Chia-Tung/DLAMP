@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
 from ..architectures import GlideUNet
+from ..callbacks import LogDiffusionPredSamplesCallback
 from ..lightning_modules import DiffusionLightningModule
 from .base_builder import BaseBuilder
 
@@ -42,7 +43,7 @@ class GlideBuilder(BaseBuilder):
             attn_num_heads=self.kwargs.attn_num_heads,
         )
 
-    def _regression_model(self) -> ort.InferenceSession:
+    def _regression_model(self, gpu_id: int) -> ort.InferenceSession:
         assert "CUDAExecutionProvider" in ort.get_available_providers()
 
         # An issue about onnxruntime for cuda12.x
@@ -60,14 +61,22 @@ class GlideBuilder(BaseBuilder):
 
         return ort.InferenceSession(
             self.kwargs.regression_onnx_path,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+            providers=[
+                (
+                    "CUDAExecutionProvider",
+                    {
+                        "device_id": gpu_id,
+                    },
+                ),
+                "CPUExecutionProvider",
+            ],
         )
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         return DiffusionLightningModule(
             test_dataloader=test_dataloader,
-            backbone_model=self._backbone_model(),
-            regression_model=self._regression_model(),
+            backbone_model_fn=self._backbone_model,
+            regression_model_fn=self._regression_model,
             timesteps=self.kwargs.timesteps,
             beta_start=self.kwargs.beta_start,
             beta_end=self.kwargs.beta_end,
@@ -87,12 +96,6 @@ class GlideBuilder(BaseBuilder):
         # distributed training strategy
         strategy = getattr(self.kwargs, "strategy", "auto")
         match strategy:
-            case "auto":
-                pass
-            case "ddp":
-                pass
-            case "fsdp":
-                pass
             case "FULL_SHARD":
                 strategy = FSDPStrategy(
                     sharding_strategy="FULL_SHARD", state_dict_type="sharded"
@@ -102,16 +105,16 @@ class GlideBuilder(BaseBuilder):
                     sharding_strategy="SHARD_GRAD_OP", state_dict_type="sharded"
                 )
             case _:
-                raise ValueError(f"Unknown strategy: {strategy}")
+                pass
 
         # set callbacks
         callbacks = []
         callbacks.append(LearningRateMonitor())
         callbacks.append(self.checkpoint_callback())
-        # if self.kwargs.log_image_every_n_steps is not None:
-        #     callbacks.append(
-        #         LogPredictionSamplesCallback(self.kwargs.log_image_every_n_steps)
-        #     )
+        if self.kwargs.log_image_every_n_steps is not None:
+            callbacks.append(
+                LogDiffusionPredSamplesCallback(self.kwargs.log_image_every_n_steps)
+            )
         if self.kwargs.early_stop_patience is not None:
             callbacks.append(
                 EarlyStopping(
@@ -145,7 +148,7 @@ class GlideBuilder(BaseBuilder):
             dirpath=CHECKPOINT_DIR,
             filename=self.kwargs.model_name
             + f"_{self.time_stamp}"
-            + "-{epoch:03d}-{val_loss_epoch:.4f}",
+            + "-{epoch:03d}-{val_loss_epoch:.6f}",
             save_top_k=1,
             verbose=True,
             monitor="val_loss_epoch",

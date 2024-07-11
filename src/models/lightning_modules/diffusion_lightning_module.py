@@ -2,23 +2,29 @@ import lightning as L
 import onnxruntime as ort
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from einops import rearrange
 from torch.utils.data import DataLoader
+from tqdm import trange
 
 from ..loss_fn import CRPS
 from ..model_utils import get_scheduler_with_warmup
 
 
 class DiffusionLightningModule(L.LightningModule):
-    def __init__(self, *, test_dataloader, backbone_model, regression_model, **kwargs):
+    def __init__(
+        self, *, test_dataloader, backbone_model_fn, regression_model_fn, **kwargs
+    ):
         super().__init__()
         self.save_hyperparameters(
-            ignore=["test_dataloader", "backbone_model", "regression_model"]
+            ignore=["test_dataloader", "backbone_model_fn", "regression_model_fn"]
         )
 
         self._test_dataloader: DataLoader = test_dataloader
-        self.backbone_model: nn.Module = backbone_model
-        self.regress_ort: ort.InferenceSession = regression_model
+        self.backbone_model_fn = backbone_model_fn
+        self.backbone_model: nn.Module = None
+        self.regression_model_fn = regression_model_fn
+        self.regress_ort: ort.InferenceSession = None
         self.criterion = CRPS()
 
         # DDPM
@@ -60,6 +66,13 @@ class DiffusionLightningModule(L.LightningModule):
         }
 
         return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
+
+    def configure_model(self):
+        if self.backbone_model is not None and self.regress_ort is not None:
+            return
+
+        self.backbone_model = self.backbone_model_fn()
+        self.regress_ort = self.regression_model_fn(self.global_rank)
 
     def common_step(self, inp_data, target):
         """
@@ -156,6 +169,27 @@ class DiffusionLightningModule(L.LightningModule):
         x = torch.cat([x_upper, x_surface], dim=1)
         return x
 
+    def deconstruct(
+        self, x: torch.Tensor, upper_ch: int, surface_ch: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Deconstructs a tensor `x` into two tensors `x_upper` and `x_surface`.
+
+        Args:
+            x (torch.Tensor): The input tensor of shape (B, Lv*C1+C2, H, W).
+            upper_ch (int): The number of channels in the upper layer (C1).
+            surface_ch (int): The number of channels in the surface layer (C2).
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor]: A tuple containing `x_upper` and `x_surface`.
+                - `x_upper` (torch.Tensor): The upper layer tensor of shape (B, Lv, H, W, C1).
+                - `x_surface` (torch.Tensor): The surface layer tensor of shape (B, 1, H, W, C2).
+        """
+        x_upper, x_surface = x[:, :-surface_ch], x[:, -surface_ch:]
+        x_upper = rearrange(x_upper, "b (z c) h w -> b z h w c", c=upper_ch)
+        x_surface = rearrange(x_surface, "b c h w -> b 1 h w c")
+        return x_upper, x_surface
+
     def gather(self, consts: torch.Tensor, t: torch.Tensor, x_dim: int):
         """
         Gather consts for t and reshape to feature map shape
@@ -170,6 +204,22 @@ class DiffusionLightningModule(L.LightningModule):
         """
         c = consts.gather(-1, t)
         return c.reshape(-1, *((1,) * (x_dim - 1)))
+
+    def denoising(self, cond: torch.Tensor, device: torch.device) -> list[torch.Tensor]:
+        """
+        Reverse process to get the image from noise. Log 5 images in a list.
+        """
+        B, C, H, W = cond.shape
+        x = torch.randn(B, C, H, W).to(device)  # Start with random noise
+        ims = []
+        for step in trange(self.hparams.timesteps - 1, -1, -1, desc="Denoising"):
+            t = torch.full((B,), step, dtype=torch.long).to(device)
+            with torch.no_grad():
+                pred_noise = self(x, t, cond)
+                x = self.p_xt(x, pred_noise, t)
+                if step % (self.hparams.timesteps // 5) == 0:
+                    ims.append(x)
+        return ims
 
     def q_xt_xtminus1(self, xtminus1: torch.Tensor, t: torch.Tensor):
         # √(1−βt)*xtm1
@@ -188,16 +238,21 @@ class DiffusionLightningModule(L.LightningModule):
         eps = torch.randn_like(x0).to(x0.device)
         return mean + (var**0.5) * eps, eps
 
-    def p_xt(self, xt, noise, t):
+    def p_xt(self, xt: torch.Tensor, noise: torch.Tensor, t: torch.Tensor):
         alpha = 1.0 - self.beta
         alpha_bar = torch.cumprod(alpha, dim=0)
-        alpha_t = self.gather(alpha, t)
-        alpha_bar_t = self.gather(alpha_bar, t)
+        alpha_bar_prev = F.pad(alpha_bar[:-1], (1, 0), value=1.0)
+        alpha_t = self.gather(alpha, t, xt.dim())
+        alpha_bar_t = self.gather(alpha_bar, t, xt.dim())
         eps_coef = (1 - alpha_t) / (1 - alpha_bar_t) ** 0.5
-        mean = 1 / (alpha_t**0.5) * (xt - eps_coef * noise)  # Note minus sign
-        var = self.gather(self.beta, t)
+        mean = 1 / (alpha_t**0.5) * (xt - eps_coef * noise)
+        posterior_var = self.beta * (1.0 - alpha_bar_prev) / (1.0 - alpha_bar)
+        var = self.gather(posterior_var, t, xt.dim())
         eps = torch.randn(xt.shape, device=xt.device)
-        return mean + (var**0.5) * eps
+        if t == 0:
+            return mean
+        else:
+            return mean + (var**0.5) * eps
 
     def cosine_beta_schedule(self, timesteps, s=0.008):
         steps = timesteps + 1
