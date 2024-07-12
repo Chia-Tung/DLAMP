@@ -82,7 +82,8 @@ class GlideBuilder(BaseBuilder):
             beta_end=self.kwargs.beta_end,
             batch_size=self.kwargs.batch_size,
             optim_config=self.kwargs.optim_config,
-            lr_schedule=self.kwargs.lr_schedule,
+            warmup_epochs=self.kwargs.warmup_epochs,
+            crps_alpha=self.kwargs.crps_alpha,
         )
 
     def build_trainer(self, logger) -> Trainer:

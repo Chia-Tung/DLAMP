@@ -48,16 +48,20 @@ class LogDiffusionPredSamplesCallback(LogPredictionSamplesCallback):
             # denoising process
             outputs = pl_module.denoising(first_guess, target["upper_air"].device)
             output_plot = []
-            for output in outputs:
+            steps = []
+            for step, output in outputs.items():
                 _, output_surface = pl_module.deconstruct(output, upper_ch, surface_ch)
                 # shape: (H, W); type: np.ndarry
                 output_surface = output_surface.cpu().numpy()
                 output_surface = np.squeeze(destandardization(output_surface))
                 output_plot.append(output_surface + fgs_surface)
+                steps.append(f"reverse_step_{step}")
 
             fig_gt, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, tag_surface)
             fig_fg, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, fgs_surface)
-            fig_pd, _ = self.painter.plot_1xn(self.data_lon, self.data_lat, output_plot)
+            fig_pd, _ = self.painter.plot_1xn(
+                self.data_lon, self.data_lat, output_plot, titles=steps
+            )
 
             fig_gt_list.append(wandb.Image(fig_gt))
             fig_fg_list.append(wandb.Image(fig_fg))
