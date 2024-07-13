@@ -36,11 +36,11 @@ class GlideBuilder(BaseBuilder):
 
     def _backbone_model(self) -> nn.Module:
         return GlideUNet(
-            input_channels=self.input_channels,
+            image_channels=getattr(self.kwargs, "image_channels", self.input_channels),
             hidden_dim=self.kwargs.hidden_dim,
             ch_mults=self.kwargs.ch_mults,
             is_attn=self.kwargs.is_attn,
-            attn_num_heads=self.kwargs.attn_num_heads,
+            n_blocks=self.kwargs.n_blocks,
         )
 
     def _regression_model(self, gpu_id: int) -> ort.InferenceSession:
@@ -80,10 +80,9 @@ class GlideBuilder(BaseBuilder):
             timesteps=self.kwargs.timesteps,
             beta_start=self.kwargs.beta_start,
             beta_end=self.kwargs.beta_end,
-            batch_size=self.kwargs.batch_size,
             optim_config=self.kwargs.optim_config,
             warmup_epochs=self.kwargs.warmup_epochs,
-            crps_alpha=self.kwargs.crps_alpha,
+            loss_factor=self.kwargs.loss_factor,
         )
 
     def build_trainer(self, logger) -> Trainer:

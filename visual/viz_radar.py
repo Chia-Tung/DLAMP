@@ -147,7 +147,8 @@ class VizRadar(TwBackground):
         for j in range(cols):
             tmp_ax = ax[j]
             fig, tmp_ax = self.plot_bg(fig, tmp_ax, grid_on)
-            fig, tmp_ax = self._plot_radar(fig, tmp_ax, lon, lat, data[j], titles[j])
+            title = titles[j] if titles else ""
+            fig, tmp_ax = self._plot_radar(fig, tmp_ax, lon, lat, data[j], title)
 
         return fig, ax
 

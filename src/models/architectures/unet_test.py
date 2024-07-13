@@ -12,25 +12,26 @@ class UnetTest(unittest.TestCase):
         hidden_dim = 128
         ch_mults = (1, 2, 2, 1)
         is_attn = (False, False, False, True)
-        attn_num_heads = 8
+        n_blocks = 8
+        steps = 300
 
         # input
         input_shape = (batch_size, channels, 224, 224)
-        x = torch.randn(input_shape)
-        x = x.cuda()
+        x = torch.randn(input_shape).cuda()
+        t = torch.randint(0, steps, (batch_size,), dtype=torch.long).cuda()
 
         # model
         model = UNet(
-            input_channels=channels,
-            hidden_dim=hidden_dim,
+            image_channels=channels,
+            n_channels=hidden_dim,
             ch_mults=ch_mults,
             is_attn=is_attn,
-            attn_num_heads=attn_num_heads,
+            n_blocks=n_blocks,
         )
         model = model.cuda()
 
         with torch.no_grad():
-            y = model(x)
+            y = model(x, t)
 
         self.assertEqual(x.shape, y.shape)
 
@@ -40,15 +41,15 @@ class DownsampleTest(unittest.TestCase):
         channels = 3
 
         # input
-        x = torch.randn((16, channels, 128, 128))
-        x = x.cuda()
+        x = torch.randn((16, channels, 128, 128)).cuda()
+        t = torch.randn((16, channels)).cuda()
 
         # model
         downsample = Downsample(channels)
         downsample = downsample.cuda()
 
         with torch.no_grad():
-            y = downsample(x)
+            y = downsample(x, t)
 
         self.assertEqual(x.size(-2) / 2, y.size(-2))
         self.assertEqual(x.size(-1) / 2, y.size(-1))
@@ -59,15 +60,15 @@ class UpsampleTest(unittest.TestCase):
         channels = 3
 
         # input
-        x = torch.randn((16, channels, 128, 128))
-        x = x.cuda()
+        x = torch.randn((16, channels, 128, 128)).cuda()
+        t = torch.randn((16, channels)).cuda()
 
         # model
         upsample = Upsample(channels)
         upsample = upsample.cuda()
 
         with torch.no_grad():
-            y = upsample(x)
+            y = upsample(x, t)
 
         self.assertEqual(x.size(-2) * 2, y.size(-2))
         self.assertEqual(x.size(-1) * 2, y.size(-1))
@@ -98,13 +99,14 @@ class ResidualBlockTest(unittest.TestCase):
             # input
             x = torch.randn((self.batch_size, in_channels, self.H, self.W))
             x = x.cuda()
+            t = torch.randn((16, time_channels)).cuda()
 
             # model
             residual_block = ResidualBlock(in_channels, out_channels, time_channels)
             residual_block = residual_block.cuda()
 
             with torch.no_grad():
-                y = residual_block(x)
+                y = residual_block(x, t)
 
             self.assertEqual(
                 y.shape, torch.Size([self.batch_size, out_channels, self.H, self.W])
@@ -115,17 +117,19 @@ class AttentionBlockTest(unittest.TestCase):
     def test_attention_block(self):
         in_channels = 128
         attn_num_heads = 8
+        time_channels = 32
 
         # input
         x = torch.randn((16, in_channels, 32, 32))
         x = x.cuda()
+        t = torch.randn((16, time_channels)).cuda()
 
         # model
         attention_block = AttentionBlock(in_channels, attn_num_heads)
         attention_block = attention_block.cuda()
 
         with torch.no_grad():
-            y = attention_block(x)
+            y = attention_block(x, t)
 
         self.assertEqual(x.shape, y.shape)
 

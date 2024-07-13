@@ -7,7 +7,6 @@ from einops import rearrange
 from torch.utils.data import DataLoader
 from tqdm import trange
 
-from ..loss_fn import L1CRPS
 from ..model_utils import RunningAverage
 
 
@@ -22,11 +21,11 @@ class DiffusionLightningModule(L.LightningModule):
 
         self._test_dataloader: DataLoader = test_dataloader
         self.backbone_model_fn = backbone_model_fn
-        self.regression_model_fn = regression_model_fn
-        self.crps_fn = L1CRPS()
         self.backbone_model: nn.Module = None
+        self.regression_model_fn = regression_model_fn
         self.regress_ort: ort.InferenceSession = None
-        self.crps_record = RunningAverage()
+        self.loss = nn.MSELoss()
+        self.loss_record = RunningAverage()
 
         # DDPM
         self.beta = self.linear_beta_schedule(
@@ -57,9 +56,9 @@ class DiffusionLightningModule(L.LightningModule):
                 lr_scale = 1
             else:
                 overflow = epoch - self.hparams.warmup_epochs
-                lr_scale = 0.95**overflow
-                if lr_scale < 1e-2:
-                    lr_scale = 1e-2
+                lr_scale = 0.97**overflow
+                if lr_scale < 1e-1:
+                    lr_scale = 1e-1
             return lr_scale
 
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
@@ -110,6 +109,11 @@ class DiffusionLightningModule(L.LightningModule):
             device=target["upper_air"].device,
         )
         target = self.restruct_dimension(target["upper_air"], target["surface"])
+        B = target.shape[0]
+
+        # only radar @ surface
+        first_guess = first_guess[:, -1:, ...]
+        target = target[:, -1:, ...]
 
         # device check
         if self.beta.device != target.device:
@@ -117,23 +121,20 @@ class DiffusionLightningModule(L.LightningModule):
 
         # DDPM
         x_0 = target - first_guess  # (B, C, H, W)
-        t = torch.randint(
-            0, self.hparams.timesteps, (self.hparams.batch_size,), dtype=torch.long
-        ).to(
+        t = torch.randint(0, self.hparams.timesteps, (B,), dtype=torch.long).to(
             target.device
         )  # (B,)
         x_t, noise = self.q_xt_x0(x_0, t)
-        pred_noise = self(x_t, t, first_guess)
-        crps_loss = self.crps_fn(pred_noise, noise)
-        self.crps_record.add(crps_loss, 1)
-        loss = crps_loss * self.hparams.crps_alpha
-        return loss
+        pred_noise = self(x_t.float(), t, first_guess.float())
+        loss = self.loss(pred_noise, noise)
+        self.loss_record.add(loss.item() * B, B)
+        return loss * self.hparams.loss_factor
 
     def training_step(self, batch, batch_idx):
         inp_data, target = batch
         loss = self.common_step(inp_data, target)
         self.log("train_loss", loss, on_step=True, prog_bar=True, sync_dist=True)
-        self.log("crps_loss", self.crps_record.get(), on_step=True, sync_dist=True)
+        self.log("orig_loss", self.loss_record.get(), on_step=True, sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -145,7 +146,7 @@ class DiffusionLightningModule(L.LightningModule):
         return loss
 
     def on_train_epoch_end(self):
-        self.crps_record.reset()
+        self.loss_record.reset()
 
     def test_dataloader(self) -> DataLoader:
         """
@@ -232,29 +233,38 @@ class DiffusionLightningModule(L.LightningModule):
             with torch.no_grad():
                 pred_noise = self(x, t, cond)
                 x = self.p_xt(x, pred_noise, t)
-                if step % (self.hparams.timesteps // 5) == 0:
-                    ims[step] = x
+            if step == self.hparams.timesteps - 1:
+                step += 1
+            if step % (self.hparams.timesteps // 5) == 0:
+                ims[step] = x
         return ims
 
     def q_xt_xtminus1(self, xtminus1: torch.Tensor, t: torch.Tensor):
         # √(1−βt)*xtm1
-        mean = self.gather(1.0 - self.beta, t, xtminus1.dim()) ** 0.5 * xtminus1
+        alpha = 1.0 - self.beta
+        alpha_t = self.gather(alpha, t, xtminus1.dim())
+        mean = torch.sqrt(alpha_t) * xtminus1
         # βt I
         var = self.gather(self.beta, t, xtminus1.dim())
         # Noise shaped like xtm1
         eps = torch.randn_like(xtminus1)
-        return mean + (var**0.5) * eps, eps
+        return mean + torch.sqrt(var) * eps, eps
 
     def q_xt_x0(self, x0: torch.Tensor, t: torch.Tensor):
         alpha = 1.0 - self.beta
         alpha_bar = torch.cumprod(alpha, dim=0)
-        mean = self.gather(alpha_bar, t, x0.dim()) ** 0.5 * x0
-        var = 1 - self.gather(alpha_bar, t, x0.dim())
-        eps = torch.randn_like(x0).to(x0.device)
-        return mean + (var**0.5) * eps, eps
+        sqrt_alpha_bar = torch.sqrt(alpha_bar)
+        sqrt_one_minus_alpha_bar = torch.sqrt(1.0 - alpha_bar)
+
+        mean = self.gather(sqrt_alpha_bar, t, x0.dim()) * x0
+        var = self.gather(sqrt_one_minus_alpha_bar, t, x0.dim())
+        eps = torch.randn_like(x0)
+        return mean + var * eps, eps
 
     def p_xt(self, xt: torch.Tensor, noise: torch.Tensor, t: torch.Tensor):
         alpha = 1.0 - self.beta
+        if alpha != xt.device:
+            alpha = alpha.to(xt.device)
         alpha_bar = torch.cumprod(alpha, dim=0)
         alpha_bar_prev = F.pad(alpha_bar[:-1], (1, 0), value=1.0)
         alpha_t = self.gather(alpha, t, xt.dim())
