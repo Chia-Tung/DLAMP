@@ -1,5 +1,7 @@
 from collections import defaultdict
+from functools import partial, wraps
 
+import onnxruntime as ort
 import torch
 
 from src.standardization import destandardization
@@ -40,3 +42,58 @@ def prediction_postprocess(
         predictions[k] = torch.from_numpy(tmp)
 
     return predictions
+
+
+def ort_instance_decorator(func):
+    onnx_path = None
+    gpu_id = None
+
+    @wraps(func)
+    def wrapper(**kwargs) -> ort.InferenceSession | partial:
+        nonlocal onnx_path, gpu_id
+        if "onnx_path" in kwargs:
+            onnx_path = kwargs["onnx_path"]
+        if "gpu_id" in kwargs:
+            gpu_id = kwargs["gpu_id"]
+
+        if onnx_path is not None and gpu_id is not None:
+            return func(onnx_path=onnx_path, gpu_id=gpu_id)
+        elif onnx_path is not None:
+            return partial(func, onnx_path=onnx_path)
+        elif gpu_id is not None:
+            return partial(func, gpu_id=gpu_id)
+        else:
+            raise RuntimeError(
+                "onnx_path and gpu_id are both None. Please specify onnx_path and gpu_id."
+            )
+
+    return wrapper
+
+
+@ort_instance_decorator
+def init_ort_instance(gpu_id: int, onnx_path: str) -> ort.InferenceSession:
+    assert "CUDAExecutionProvider" in ort.get_available_providers()
+
+    # An issue about onnxruntime for cuda12.x
+    # ref: https://github.com/microsoft/onnxruntime/issues/8313#issuecomment-1486097717
+    _default_session_options = ort.capi._pybind_state.get_default_session_options()
+
+    def get_default_session_options_new():
+        _default_session_options.inter_op_num_threads = 1
+        _default_session_options.intra_op_num_threads = 1
+        return _default_session_options
+
+    ort.capi._pybind_state.get_default_session_options = get_default_session_options_new
+
+    return ort.InferenceSession(
+        onnx_path,
+        providers=[
+            (
+                "CUDAExecutionProvider",
+                {
+                    "device_id": gpu_id,
+                },
+            ),
+            "CPUExecutionProvider",
+        ],
+    )

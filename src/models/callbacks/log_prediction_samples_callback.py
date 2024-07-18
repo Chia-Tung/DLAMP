@@ -20,6 +20,9 @@ class LogPredictionSamplesCallback(Callback):
         self.painter = VizRadar()
         self.global_step_record = 0
         self.already_load_data_for_plot = False
+        #
+        self.fig_inputs = None
+        self.fig_targets = None
 
     def on_validation_start(
         self, trainer: L.Trainer, pl_module: L.LightningModule

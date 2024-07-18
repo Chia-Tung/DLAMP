@@ -59,7 +59,11 @@ class PanguBuilder(BaseBuilder):
             segmented_smooth_boundary_width=self.kwargs.segmented_smooth_boundary_width,
         )
 
-    def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
+    def build_model(
+        self,
+        test_dataloader: DataLoader | None = None,
+        predict_iters: int | None = None,
+    ) -> LightningModule:
         return PanguLightningModule(
             test_dataloader=test_dataloader,
             backbone_model=self._backbone_model(),
@@ -71,6 +75,7 @@ class PanguBuilder(BaseBuilder):
             surface_vars=self.surface_vars,
             optim_config=self.kwargs.optim_config,
             lr_schedule=self.kwargs.lr_schedule,
+            predict_iters=predict_iters,
         )
 
     def build_trainer(self, logger) -> Trainer:

@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from lightning.pytorch.utilities.grads import grad_norm
 from torch.utils.data import DataLoader
+from tqdm import trange
 
 from ..model_utils import get_scheduler_with_warmup
 
@@ -114,14 +115,16 @@ class PanguLightningModule(L.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         inp_data, target = batch
-        oup_upper, oup_surface = self(inp_data["upper_air"], inp_data["surface"])
+        upper, surface = inp_data["upper_air"], inp_data["surface"]
+        for _ in trange(self.hparams.predict_iters, desc=f"Predict batch {batch_idx}"):
+            upper, surface = self(upper, surface)
         return (
             inp_data["upper_air"],
             inp_data["surface"],
             target["upper_air"],
             target["surface"],
-            oup_upper,
-            oup_surface,
+            upper,
+            surface,
         )
 
     def get_product_mapping(self):

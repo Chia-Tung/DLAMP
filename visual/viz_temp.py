@@ -16,7 +16,7 @@ class VizTemp(TwBackground):
     def __init__(self, pressure_level: int):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"_temp@{self.press_lv}"
+        self.title_suffix = f"Temperature@{self.press_lv}\n"
 
     def plot_mxn(
         self,
@@ -112,7 +112,7 @@ class VizTemp(TwBackground):
             zorder=0,
         )
         if title:
-            ax.set_title(title + self.title_suffix)
+            ax.set_title(self.title_suffix + title)
 
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -122,6 +122,30 @@ class VizTemp(TwBackground):
         # colorbar
         cbar = fig.colorbar(conf, cax=cax)
         cbar.ax.set_title("($^{o}$C)")
+
+        return fig, ax
+
+    def plot_1xn(
+        self,
+        lon: np.ndarray,
+        lat: np.ndarray,
+        data: list[np.ndarray],
+        titles: list[str] = [],
+        grid_on: bool = False,
+    ):
+        if len(lat.shape) == 2 and len(lon.shape) == 2:
+            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
+            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
+
+        cols = len(data)
+
+        plt.close()
+        fig, ax = plt.subplots(1, cols, figsize=(20, 7), dpi=200, facecolor="w")
+        for j in range(cols):
+            tmp_ax = ax[j]
+            title = titles[j] if titles else ""
+            fig, tmp_ax = self.plot_bg(fig, tmp_ax, grid_on)
+            fig, tmp_ax = self._plot_temp(fig, tmp_ax, lon, lat, data[j], title)
 
         return fig, ax
 

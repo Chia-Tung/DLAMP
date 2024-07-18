@@ -130,10 +130,6 @@ class Upsample(nn.Module):
         # you need to turn on `self.conv_cond` and cond = self.conv_cond(cond) to
         # upsample the cond.
 
-        # Note: In Pytorch 2.3.1, there is a bug when using `nn.ConvTranspose2d` in
-        # `DistributedDataParallel`. This bug makes gradients of `nn.ConvTranspose2d.weight`
-        # and `nn.ConvTranspose2d.bias` to be None.
-
         # self.conv_cond = nn.ConvTranspose2d(orig_channels, orig_channels, (4, 4), (2, 2), (1, 1))
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor):

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Callable
 
 import onnxruntime as ort
 import torch
@@ -13,6 +14,8 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.profilers import PyTorchProfiler
 from lightning.pytorch.strategies import FSDPStrategy
 from torch.utils.data import DataLoader
+
+from inference.infer_utils import init_ort_instance
 
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
@@ -43,40 +46,14 @@ class GlideBuilder(BaseBuilder):
             n_blocks=self.kwargs.n_blocks,
         )
 
-    def _regression_model(self, gpu_id: int) -> ort.InferenceSession:
-        assert "CUDAExecutionProvider" in ort.get_available_providers()
-
-        # An issue about onnxruntime for cuda12.x
-        # ref: https://github.com/microsoft/onnxruntime/issues/8313#issuecomment-1486097717
-        _default_session_options = ort.capi._pybind_state.get_default_session_options()
-
-        def get_default_session_options_new():
-            _default_session_options.inter_op_num_threads = 1
-            _default_session_options.intra_op_num_threads = 1
-            return _default_session_options
-
-        ort.capi._pybind_state.get_default_session_options = (
-            get_default_session_options_new
-        )
-
-        return ort.InferenceSession(
-            self.kwargs.regression_onnx_path,
-            providers=[
-                (
-                    "CUDAExecutionProvider",
-                    {
-                        "device_id": gpu_id,
-                    },
-                ),
-                "CPUExecutionProvider",
-            ],
-        )
+    def _regression_model(self) -> Callable[[int], ort.InferenceSession]:
+        return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         return DiffusionLightningModule(
             test_dataloader=test_dataloader,
             backbone_model_fn=self._backbone_model,
-            regression_model_fn=self._regression_model,
+            regression_model_fn=self._regression_model(),
             timesteps=self.kwargs.timesteps,
             beta_start=self.kwargs.beta_start,
             beta_end=self.kwargs.beta_end,
