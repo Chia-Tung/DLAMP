@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from src.models.model_utils import get_builder
+from src.models import PanguLightningModule, get_builder
 from src.utils import DataCompose
 
 from .infer_utils import prediction_postprocess
@@ -47,7 +47,7 @@ class BatchInferenceCkpt(InferenceBase):
         predictions = self.trainer.predict(
             self.model, self.data_manager, ckpt_path=self.cfg.inference.best_ckpt
         )
-        mapping = self.model.get_product_mapping()
+        mapping = PanguLightningModule.get_product_mapping()
         predictions = prediction_postprocess(predictions, mapping)
         for product_type, tensor in predictions.items():
             setattr(self, product_type, tensor)

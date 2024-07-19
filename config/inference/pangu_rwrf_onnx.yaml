@@ -1,5 +1,5 @@
 infer_type: "onnx"
 onnx_path: "./export/Pangu_model.onnx"
 output_itv:
-  hours: 12
+  hours: 15
 gpu_id: 0

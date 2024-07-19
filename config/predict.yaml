@@ -22,7 +22,7 @@ defaults:
   - data: rwrf
   - lightning: pangu_rwrf
   - model: pangu_rwrf
-  - inference: pangu_rwrf_ckpt
+  - inference: pangu_rwrf_onnx
   - plot: pangu_rwrf
   - _self_
   - override hydra/job_logging: default # default/disabled/custom

@@ -223,18 +223,16 @@ class DiffusionLightningModule(L.LightningModule):
         self, cond: torch.Tensor, device: torch.device
     ) -> dict[int, torch.Tensor]:
         """
-        Reverse process to get the image from noise. Log 5 images in a list.
+        Reverse process to get the image from noise. Log 6 images in a list.
         """
         B, C, H, W = cond.shape
         x = torch.randn(B, C, H, W).to(device)  # Start with random noise
-        ims = {}
+        ims = {self.hparams.timesteps: x}
         for step in trange(self.hparams.timesteps - 1, -1, -1, desc="Denoising"):
             t = torch.full((B,), step, dtype=torch.long).to(device)
             with torch.no_grad():
                 pred_noise = self(x, t, cond)
                 x = self.p_xt(x, pred_noise, t)
-            if step == self.hparams.timesteps - 1:
-                step += 1
             if step % (self.hparams.timesteps // 5) == 0:
                 ims[step] = x
         return ims

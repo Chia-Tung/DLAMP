@@ -127,7 +127,8 @@ class PanguLightningModule(L.LightningModule):
             surface,
         )
 
-    def get_product_mapping(self):
+    @staticmethod
+    def get_product_mapping():
         # check `self.predict_step()` for the order
         return {
             "input_upper": 0,
