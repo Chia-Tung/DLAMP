@@ -16,7 +16,7 @@ class VizWind(TwBackground):
     def __init__(self, pressure_level: int):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"Wind Speed@{self.press_lv}\n"
+        self.title_suffix = f"Wind@{self.press_lv}Hpa"
 
     def plot_mxn(
         self,
@@ -107,7 +107,7 @@ class VizWind(TwBackground):
         )
         ax.streamplot(lon, lat, u_wind, v_wind, zorder=0, color="C0")
         if title:
-            ax.set_title(self.title_suffix + title)
+            ax.set_title(f"{title} {self.title_suffix}")
 
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -116,6 +116,7 @@ class VizWind(TwBackground):
 
         # colorbar
         cbar = fig.colorbar(conf, cax=cax)
+        cbar.ax.set_title("m/s")
 
         return fig, ax
 

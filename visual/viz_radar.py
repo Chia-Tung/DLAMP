@@ -16,7 +16,7 @@ from .tw_background import TwBackground
 class VizRadar(TwBackground):
     def __init__(self):
         super().__init__()
-        self.title_prefix = "Radar Reflectivity\n"
+        self.title_suffix = "Radar Reflectivity"
 
     def plot_mxn(
         self,
@@ -114,7 +114,7 @@ class VizRadar(TwBackground):
             zorder=0,
         )
         if title:
-            ax.set_title(self.title_prefix + title)
+            ax.set_title(f"{title} {self.title_suffix}")
 
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
