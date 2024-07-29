@@ -16,7 +16,7 @@ class VizTemp(TwBackground):
     def __init__(self, pressure_level: int):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"Temperature@{self.press_lv}\n"
+        self.title_suffix = f"Temperature@{self.press_lv}Hpa"
 
     def plot_mxn(
         self,
@@ -112,7 +112,7 @@ class VizTemp(TwBackground):
             zorder=0,
         )
         if title:
-            ax.set_title(self.title_suffix + title)
+            ax.set_title(f"{title} {self.title_suffix}")
 
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -121,7 +121,7 @@ class VizTemp(TwBackground):
 
         # colorbar
         cbar = fig.colorbar(conf, cax=cax)
-        cbar.ax.set_title("($^{o}$C)")
+        cbar.ax.set_title("$^{o}$C")
 
         return fig, ax
 

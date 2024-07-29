@@ -16,7 +16,7 @@ class VizVor(TwBackground):
     def __init__(self, pressure_level: int):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"Vorticity@{self.press_lv}\n"
+        self.title_suffix = f"Vorticity@{self.press_lv}Hpa"
 
     def plot_mxn(
         self,
@@ -130,7 +130,7 @@ class VizVor(TwBackground):
             extend="both",
         )
         if title:
-            ax.set_title(self.title_suffix + title)
+            ax.set_title(f"{title} {self.title_suffix}")
 
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -139,7 +139,7 @@ class VizVor(TwBackground):
 
         # colorbar
         cbar = fig.colorbar(conf, cax=cax)
-        cbar.ax.set_title("($10^{-5} s^{-1}$)")
+        cbar.ax.set_title("$\\frac{1}{10^5 s}$")
         cbar.set_ticks(np.arange(-100, 101, 20))
 
         return fig, ax

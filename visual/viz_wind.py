@@ -116,7 +116,7 @@ class VizWind(TwBackground):
 
         # colorbar
         cbar = fig.colorbar(conf, cax=cax)
-        cbar.ax.set_title("m/s")
+        cbar.ax.set_title("$\\frac{m}{s}$")
 
         return fig, ax
 
