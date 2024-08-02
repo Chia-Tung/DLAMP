@@ -260,9 +260,9 @@ class DiffusionLightningModule(L.LightningModule):
         return mean + var * eps, eps
 
     def p_xt(self, xt: torch.Tensor, noise: torch.Tensor, t: torch.Tensor):
+        if self.beta.device != xt.device:
+            self.beta = self.beta.to(xt.device)
         alpha = 1.0 - self.beta
-        if alpha != xt.device:
-            alpha = alpha.to(xt.device)
         alpha_bar = torch.cumprod(alpha, dim=0)
         alpha_bar_prev = F.pad(alpha_bar[:-1], (1, 0), value=1.0)
         alpha_t = self.gather(alpha, t, xt.dim())

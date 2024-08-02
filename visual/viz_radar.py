@@ -103,7 +103,7 @@ class VizRadar(TwBackground):
         data: np.ndarray,
         title: str = "",
     ) -> tuple[Figure, Axes]:
-        ax.pcolormesh(
+        pc = ax.pcolormesh(
             lon,
             lat,
             data,
@@ -111,6 +111,9 @@ class VizRadar(TwBackground):
             shading="auto",
             norm=DBZ_NORM,
             cmap=DBZ_COLOR,
+            # cmap="magma",  # corrdiff
+            # vmax=40,  # corrdiff
+            # vmin=0,  # corrdiff
             zorder=0,
         )
         if title:
@@ -122,6 +125,7 @@ class VizRadar(TwBackground):
         cax = divider.append_axes("right", size="5%", pad=0.05)
 
         # colorbar
+        # cbar = fig.colorbar(pc, cax=cax) # corrdiff
         cbar = fig.colorbar(
             cm.ScalarMappable(norm=DBZ_NORM, cmap=DBZ_COLOR),
             cax=cax,
