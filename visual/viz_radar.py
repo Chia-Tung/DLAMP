@@ -16,7 +16,7 @@ from .tw_background import TwBackground
 class VizRadar(TwBackground):
     def __init__(self):
         super().__init__()
-        self.title_suffix = "_radar_reflectivity"
+        self.title_suffix = "Radar Reflectivity"
 
     def plot_mxn(
         self,
@@ -46,6 +46,8 @@ class VizRadar(TwBackground):
 
         rows = 2  # gt/pred
         columns = ground_truth.shape[0]
+
+        plt.close()
         fig, ax = plt.subplots(rows, columns, figsize=(20, 7), dpi=200, facecolor="w")
 
         # ground truth
@@ -85,6 +87,7 @@ class VizRadar(TwBackground):
             lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
             lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
 
+        plt.close()
         fig, ax = plt.subplots(1, 1, figsize=(7, 7), dpi=200, facecolor="w")
         fig, ax = super().plot_bg(fig, ax, grid_on)
         fig, ax = self._plot_radar(fig, ax, lon, lat, data, title)
@@ -100,7 +103,7 @@ class VizRadar(TwBackground):
         data: np.ndarray,
         title: str = "",
     ) -> tuple[Figure, Axes]:
-        ax.pcolormesh(
+        pc = ax.pcolormesh(
             lon,
             lat,
             data,
@@ -108,10 +111,13 @@ class VizRadar(TwBackground):
             shading="auto",
             norm=DBZ_NORM,
             cmap=DBZ_COLOR,
+            # cmap="magma",  # corrdiff
+            # vmax=40,  # corrdiff
+            # vmin=0,  # corrdiff
             zorder=0,
         )
         if title:
-            ax.set_title(title + self.title_suffix)
+            ax.set_title(f"{title} {self.title_suffix}")
 
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -119,6 +125,7 @@ class VizRadar(TwBackground):
         cax = divider.append_axes("right", size="5%", pad=0.05)
 
         # colorbar
+        # cbar = fig.colorbar(pc, cax=cax) # corrdiff
         cbar = fig.colorbar(
             cm.ScalarMappable(norm=DBZ_NORM, cmap=DBZ_COLOR),
             cax=cax,
@@ -132,6 +139,7 @@ class VizRadar(TwBackground):
         lon: np.ndarray,
         lat: np.ndarray,
         data: list[np.ndarray],
+        titles: list[str] = [],
         grid_on: bool = False,
     ):
         if len(lat.shape) == 2 and len(lon.shape) == 2:
@@ -139,11 +147,14 @@ class VizRadar(TwBackground):
             lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
 
         cols = len(data)
+
+        plt.close()
         fig, ax = plt.subplots(1, cols, figsize=(20, 7), dpi=200, facecolor="w")
         for j in range(cols):
             tmp_ax = ax[j]
+            title = titles[j] if titles else ""
             fig, tmp_ax = self.plot_bg(fig, tmp_ax, grid_on)
-            fig, tmp_ax = self._plot_radar(fig, tmp_ax, lon, lat, data[j])
+            fig, tmp_ax = self._plot_radar(fig, tmp_ax, lon, lat, data[j], title)
 
         return fig, ax
 

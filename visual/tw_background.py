@@ -30,6 +30,8 @@ class TwBackground:
         Plots the county data on a figure
         """
         fig.tight_layout()
+        # fig.patch.set_visible(False)
+        # ax.axis("off")
         ax = self.county_data.plot(
             ax=ax, color="none", edgecolor="k", linewidth=1, zorder=1
         )
@@ -39,6 +41,8 @@ class TwBackground:
         # ax.set_ylim(20, 27) # QPESUMS
         ax.set_xlim(116, 125.7)  # RWRF
         ax.set_ylim(19.4, 28)  # RWRF
+        # ax.set_xlim(116.5, 125)  # interp
+        # ax.set_ylim(19.75, 27.75)  # interp
 
         # default grid zorder is 2.5
         if grid_on:

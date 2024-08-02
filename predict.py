@@ -1,3 +1,4 @@
+import importlib
 from datetime import datetime
 
 import hydra
@@ -5,7 +6,6 @@ import matplotlib.pyplot as plt
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from inference import BatchInference
 from src.utils import DataCompose
 from visual import *
 
@@ -16,7 +16,15 @@ def main(cfg: DictConfig) -> None:
     eval_cases = [datetime(2021, 8, 7), datetime(2022, 9, 12)]
 
     # Inference
-    infer_machine = BatchInference(cfg, eval_cases)
+    if cfg.inference.infer_type == "ckpt":
+        infer_machine = getattr(
+            importlib.import_module("inference"), "BatchInferenceCkpt"
+        )
+    elif cfg.inference.infer_type == "onnx":
+        infer_machine = getattr(
+            importlib.import_module("inference"), "BatchInferenceOnnx"
+        )
+    infer_machine = infer_machine(cfg, eval_cases)
     infer_machine.infer()
 
     # Prepare lat/lon
@@ -33,7 +41,7 @@ def main(cfg: DictConfig) -> None:
         gt, pred = infer_machine.get_figure_materials(eval_case, data_compose)
         fig, ax = radar_painter.plot_mxn(lon, lat, gt, pred, grid_on=True)
         fig.savefig(
-            f"./gallery/{data_compose}_{eval_case.strftime('%Y%m%d_%H%M')}.png",
+            f"./gallery/{data_compose}_{eval_case.strftime('%Y%m%d_%H%M')}_{cfg.inference.output_itv.hours}.png",
             transparent=False,
         )
         plt.close()
@@ -47,7 +55,7 @@ def main(cfg: DictConfig) -> None:
         gt_v, pred_v = infer_machine.get_figure_materials(eval_case, v_compose)
         fig, ax = wind_painter.plot_mxn(lon, lat, gt_u, gt_v, pred_u, pred_v)
         fig.savefig(
-            f"./gallery/{u_compose}_{eval_case.strftime('%Y%m%d_%H%M')}.png",
+            f"./gallery/{u_compose}_{eval_case.strftime('%Y%m%d_%H%M')}_{cfg.inference.output_itv.hours}.png",
             transparent=False,
         )
         plt.close()

@@ -7,8 +7,7 @@ from einops import rearrange
 from torch.utils.data import DataLoader
 from tqdm import trange
 
-from ..loss_fn import CRPS
-from ..model_utils import get_scheduler_with_warmup
+from ..model_utils import RunningAverage
 
 
 class DiffusionLightningModule(L.LightningModule):
@@ -25,10 +24,11 @@ class DiffusionLightningModule(L.LightningModule):
         self.backbone_model: nn.Module = None
         self.regression_model_fn = regression_model_fn
         self.regress_ort: ort.InferenceSession = None
-        self.criterion = CRPS()
+        self.loss = nn.MSELoss()
+        self.loss_record = RunningAverage()
 
         # DDPM
-        self.beta = self.sigmoid_beta_schedule(
+        self.beta = self.linear_beta_schedule(
             self.hparams.timesteps, self.hparams.beta_start, self.hparams.beta_end
         )
 
@@ -50,24 +50,30 @@ class DiffusionLightningModule(L.LightningModule):
             self.parameters(), **self.hparams.optim_config.args
         )
 
-        # set learning rate schedule
-        lr_scheduler: torch.optim.lr_scheduler.LambdaLR = get_scheduler_with_warmup(
-            optimizer,
-            training_steps=int(self.trainer.estimated_stepping_batches),
-            schedule_type=self.hparams.lr_schedule.name,
-            **self.hparams.lr_schedule.args,
-        )
+        # set lr scheduler
+        def lr_lambda(epoch):
+            if epoch <= self.hparams.warmup_epochs:
+                lr_scale = 1
+            else:
+                overflow = epoch - self.hparams.warmup_epochs
+                lr_scale = 0.97**overflow
+                if lr_scale < 1e-1:
+                    lr_scale = 1e-1
+            return lr_scale
 
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         lr_scheduler_config = {
             "scheduler": lr_scheduler,
-            "interval": "step",
+            "interval": "epoch",
             "frequency": 1,
             "name": "customized_lr",
         }
-
         return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
 
     def configure_model(self):
+        """
+        Speed up model initialization. Trainer can create model directly on GPU.
+        """
         if self.backbone_model is not None and self.regress_ort is not None:
             return
 
@@ -103,6 +109,11 @@ class DiffusionLightningModule(L.LightningModule):
             device=target["upper_air"].device,
         )
         target = self.restruct_dimension(target["upper_air"], target["surface"])
+        B = target.shape[0]
+
+        # only radar @ surface
+        first_guess = first_guess[:, -1:, ...]
+        target = target[:, -1:, ...]
 
         # device check
         if self.beta.device != target.device:
@@ -110,20 +121,20 @@ class DiffusionLightningModule(L.LightningModule):
 
         # DDPM
         x_0 = target - first_guess  # (B, C, H, W)
-        t = torch.randint(
-            0, self.hparams.timesteps, (self.hparams.batch_size,), dtype=torch.long
-        ).to(
+        t = torch.randint(0, self.hparams.timesteps, (B,), dtype=torch.long).to(
             target.device
         )  # (B,)
         x_t, noise = self.q_xt_x0(x_0, t)
-        pred_noise = self(x_t, t, first_guess)
-        loss = self.criterion(noise, pred_noise)
-        return loss
+        pred_noise = self(x_t.float(), t, first_guess.float())
+        loss = self.loss(pred_noise, noise)
+        self.loss_record.add(loss.item() * B, B)
+        return loss * self.hparams.loss_factor
 
     def training_step(self, batch, batch_idx):
         inp_data, target = batch
         loss = self.common_step(inp_data, target)
         self.log("train_loss", loss, on_step=True, prog_bar=True, sync_dist=True)
+        self.log("orig_loss", self.loss_record.get(), on_step=True, sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -133,6 +144,9 @@ class DiffusionLightningModule(L.LightningModule):
             "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
         )
         return loss
+
+    def on_train_epoch_end(self):
+        self.loss_record.reset()
 
     def test_dataloader(self) -> DataLoader:
         """
@@ -205,54 +219,65 @@ class DiffusionLightningModule(L.LightningModule):
         c = consts.gather(-1, t)
         return c.reshape(-1, *((1,) * (x_dim - 1)))
 
-    def denoising(self, cond: torch.Tensor, device: torch.device) -> list[torch.Tensor]:
+    def denoising(
+        self, cond: torch.Tensor, device: torch.device
+    ) -> dict[int, torch.Tensor]:
         """
-        Reverse process to get the image from noise. Log 5 images in a list.
+        Reverse process to get the image from noise. Log 6 images in a list.
         """
         B, C, H, W = cond.shape
         x = torch.randn(B, C, H, W).to(device)  # Start with random noise
-        ims = []
+        ims = {self.hparams.timesteps: x}
         for step in trange(self.hparams.timesteps - 1, -1, -1, desc="Denoising"):
             t = torch.full((B,), step, dtype=torch.long).to(device)
             with torch.no_grad():
                 pred_noise = self(x, t, cond)
                 x = self.p_xt(x, pred_noise, t)
-                if step % (self.hparams.timesteps // 5) == 0:
-                    ims.append(x)
+            if step % (self.hparams.timesteps // 5) == 0:
+                ims[step] = x
         return ims
 
     def q_xt_xtminus1(self, xtminus1: torch.Tensor, t: torch.Tensor):
         # √(1−βt)*xtm1
-        mean = self.gather(1.0 - self.beta, t, xtminus1.dim()) ** 0.5 * xtminus1
+        alpha = 1.0 - self.beta
+        alpha_t = self.gather(alpha, t, xtminus1.dim())
+        mean = torch.sqrt(alpha_t) * xtminus1
         # βt I
         var = self.gather(self.beta, t, xtminus1.dim())
         # Noise shaped like xtm1
         eps = torch.randn_like(xtminus1)
-        return mean + (var**0.5) * eps, eps
+        return mean + torch.sqrt(var) * eps, eps
 
     def q_xt_x0(self, x0: torch.Tensor, t: torch.Tensor):
         alpha = 1.0 - self.beta
         alpha_bar = torch.cumprod(alpha, dim=0)
-        mean = self.gather(alpha_bar, t, x0.dim()) ** 0.5 * x0
-        var = 1 - self.gather(alpha_bar, t, x0.dim())
-        eps = torch.randn_like(x0).to(x0.device)
-        return mean + (var**0.5) * eps, eps
+        sqrt_alpha_bar = torch.sqrt(alpha_bar)
+        sqrt_one_minus_alpha_bar = torch.sqrt(1.0 - alpha_bar)
+
+        mean = self.gather(sqrt_alpha_bar, t, x0.dim()) * x0
+        var = self.gather(sqrt_one_minus_alpha_bar, t, x0.dim())
+        eps = torch.randn_like(x0)
+        return mean + var * eps, eps
 
     def p_xt(self, xt: torch.Tensor, noise: torch.Tensor, t: torch.Tensor):
+        if self.beta.device != xt.device:
+            self.beta = self.beta.to(xt.device)
         alpha = 1.0 - self.beta
         alpha_bar = torch.cumprod(alpha, dim=0)
         alpha_bar_prev = F.pad(alpha_bar[:-1], (1, 0), value=1.0)
         alpha_t = self.gather(alpha, t, xt.dim())
         alpha_bar_t = self.gather(alpha_bar, t, xt.dim())
-        eps_coef = (1 - alpha_t) / (1 - alpha_bar_t) ** 0.5
-        mean = 1 / (alpha_t**0.5) * (xt - eps_coef * noise)
+
+        eps_coef = (1 - alpha_t) / torch.sqrt(1 - alpha_bar_t)
+        mean = (xt - eps_coef * noise) / torch.sqrt(alpha_t)
+
         posterior_var = self.beta * (1.0 - alpha_bar_prev) / (1.0 - alpha_bar)
         var = self.gather(posterior_var, t, xt.dim())
-        eps = torch.randn(xt.shape, device=xt.device)
+        eps = torch.randn_like(xt)
         if t == 0:
             return mean
         else:
-            return mean + (var**0.5) * eps
+            return mean + torch.sqrt(var) * eps
 
     def cosine_beta_schedule(self, timesteps, s=0.008):
         steps = timesteps + 1

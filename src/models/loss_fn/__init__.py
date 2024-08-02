@@ -1,1 +1,1 @@
-from .crps import CRPS
+from .crps import *
