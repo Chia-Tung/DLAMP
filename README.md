@@ -55,4 +55,4 @@ python predict.py
 |Diffusion Model (DDPM)|42M|(B, 1, 224, 224)|ResUNet|[DDPM](https://arxiv.org/abs/2006.11239)|
 
 # Acknowledgement
-This project is sponsored by the [Taiwan's Centeral Weather Administration](https://www.cwa.gov.tw/V8/C/) and the [Department of Atmospheric Sciences, NTU](https://www.as.ntu.edu.tw). Without the support of the government and educational institutions, this project is not possible. Thanks to the co-author [Tracy](https://github.com/tracylo1221) helping me to build many plots and figures.
+This project is sponsored by the [Taiwan's Centeral Weather Administration](https://www.cwa.gov.tw/V8/C/) and the [Department of Atmospheric Sciences, NTU](https://www.as.ntu.edu.tw). Without the support of the governmental and educational institutions, this project is not possible. Also, big thanks to the co-author [Tracy](https://github.com/tracylo1221). She helps me make many plots and figures.
