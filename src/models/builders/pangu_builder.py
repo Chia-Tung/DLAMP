@@ -84,6 +84,7 @@ class PanguBuilder(BaseBuilder):
             if self.kwargs.num_gpus is None
             else self.kwargs.num_gpus
         )
+        strategy = getattr(self.kwargs, "strategy", "auto")
 
         callbacks = []
         callbacks.append(LearningRateMonitor())
@@ -108,17 +109,18 @@ class PanguBuilder(BaseBuilder):
             log_every_n_steps=self.kwargs.log_every_n_steps,  # only affect train_loss
             # -1: infinite epochs, None: default 1000 epochs
             max_epochs=getattr(self.kwargs, "max_epochs", None),
-            # max_epoch must be valid, min_steps is prior to early stopping
+            # If min_steps > 0, max_epoch must be valid. And min_steps is prior to early stopping
             min_steps=getattr(self.kwargs, "min_steps", -1),
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
             limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
             accelerator="gpu",
             devices=[i for i in range(num_gpus)],
-            strategy="auto" if num_gpus <= 1 else "ddp",
+            strategy=strategy,
             callbacks=callbacks,
             profiler=PyTorchProfiler(
                 dirpath="./profiler", filename=f"{self.__class__.__name__}"
             ),
+            precision=self.kwargs.precision,
         )
 
     def checkpoint_callback(self) -> ModelCheckpoint:
