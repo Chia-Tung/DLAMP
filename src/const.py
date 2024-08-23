@@ -13,7 +13,7 @@ LAND_SEA_MASK_PATH = "./assets/constant_masks/land_sea_mask.npy"
 TOPOGRAPHY_MASK_PATH = "./assets/constant_masks/topography_mask.npy"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
 STANDARDIZATION_PATH = "./assets/standardization.json"
-DATA_PATH = "/work/dong1128/rwrf/"
+DATA_PATH = "/nwpr/wfc/com134/data"
 FIGURE_PATH = "./gallery/"
 
 # Radar color bar
