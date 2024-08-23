@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from ..const import STANDARDIZATION_PATH
@@ -13,6 +15,7 @@ from ..utils import DataCompose, DataGenerator
 class CustomDataset(Dataset):
     def __init__(
         self,
+        model_name: str,
         inp_len: int,
         oup_len: int,
         oup_itv: dict[str, int],
@@ -23,6 +26,7 @@ class CustomDataset(Dataset):
         is_train: bool,
     ):
         super().__init__()
+        self._model_name = model_name
         self._ilen = inp_len
         self._olen = oup_len
         self._oitv = timedelta(**oup_itv)
@@ -62,19 +66,22 @@ class CustomDataset(Dataset):
         if not self._is_train:
             index *= self._sr
         input_time = self._init_time_list[index]
-        input = self._get_variables_from_dt(input_time)
+        input = self._get_variables_from_dt(input_time, is_output=False)
 
         output_time = input_time + self._oitv
-        output = self._get_variables_from_dt(output_time)
+        output = self._get_variables_from_dt(output_time, is_output=True)
 
         return input, output
 
-    def _get_variables_from_dt(self, dt: datetime) -> dict[str, np.ndarray]:
+    def _get_variables_from_dt(
+        self, dt: datetime, is_output: bool
+    ) -> dict[str, np.ndarray]:
         """
         Retrieves data from a given datetime object.
 
         Parameters:
             dt (datetime): The datetime object to retrieve variables from.
+            is_output (bool): Whether the data is output data or not.
 
         Returns:
             dict: A dictionary containing the variables retrieved from the datetime object.
@@ -110,7 +117,10 @@ class CustomDataset(Dataset):
         # Warning: LightningModule doesn't support defaultdict as input/output
         final = {}
         for key, value in output.items():
-            final[key] = np.stack(value, axis=0)  # {'upper_air': (lv, h, w, c), ...}
+            stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+            if is_output and self._model_name == "Pangu":
+                stack_data = self.average_pooling(stack_data)
+            final[key] = stack_data  # {'upper_air': (lv, h, w, c), ...}
 
         return final
 
@@ -129,3 +139,42 @@ class CustomDataset(Dataset):
         """
         idx = self._init_time_list.index(dt)
         return idx if self._is_train else idx // self._sr
+
+    def average_pooling(
+        self, data: np.ndarray, kernel_size: int = 9, stride: int = 1
+    ) -> np.ndarray:
+        """
+        Applies average pooling to the input data.
+
+        Args:
+            data (np.ndarray): The input data to be pooled with shape (lv, h, w, c).
+            kernel_size (int, optional): The kernel size for average pooling. Defaults to 9.
+            stride (int, optional): The stride for average pooling. Defaults to 1.
+
+        Returns:
+            np.ndarray: The pooled data.
+        """
+        # Convert to PyTorch tensor
+        tensor_data = torch.from_numpy(data).float()
+
+        # Reshape to (lv*c, 1, h, w) for avg_pool2d
+        lv, h, w, c = tensor_data.shape
+        tensor_data = (
+            tensor_data.permute(0, 3, 1, 2).contiguous().reshape(lv * c, 1, h, w)
+        )
+
+        # Apply average pooling
+        pooled_data = F.avg_pool2d(
+            tensor_data,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=kernel_size // 2,
+            count_include_pad=False,
+        )
+
+        # Reshape back to (lv, h, w, c)
+        pooled_data = (
+            torch.reshape(pooled_data, (lv, c, h, w)).permute(0, 2, 3, 1).contiguous()
+        )
+
+        return pooled_data.numpy()

@@ -15,14 +15,18 @@ class DataManager(L.LightningDataModule):
     def __init__(
         self,
         data_list: list[DataCompose],
+        model_name: str,
         init_time_list: list[datetime] | None = None,
         **kwargs,
     ):
         super().__init__()
-        self.save_hyperparameters(ignore=["data_list", "init_time_list", "train_data"])
+        self.save_hyperparameters(
+            ignore=["data_list", "model_name", "init_time_list", "train_data"]
+        )
 
         # internal property
         self.data_list = data_list
+        self.model_name = model_name
         self.init_time_list = init_time_list
         self._train_dataset = None
         self._valid_dataset = None
@@ -121,6 +125,7 @@ class DataManager(L.LightningDataModule):
         )
 
         return CustomDataset(
+            self.model_name,
             self.hparams.input_len,
             self.hparams.output_len,
             getattr(self.hparams, "output_itv", {"hours": 1}),

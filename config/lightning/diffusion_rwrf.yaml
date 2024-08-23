@@ -4,7 +4,7 @@ output_len: 1
 split_config:
   ratios: [6, 2, 2]
   order_by_time: True
-sampling_rate: 2
+sampling_rate: 1
 batch_size: 1
 workers: 32
 # LightningModule

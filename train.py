@@ -29,7 +29,9 @@ def main(cfg: DictConfig) -> None:
 
     # prepare data
     data_list = DataCompose.from_config(cfg.data.train_data)
-    data_manager = DataManager(data_list, **cfg.data, **cfg.lightning)
+    data_manager = DataManager(
+        data_list, cfg.model.model_name, **cfg.data, **cfg.lightning
+    )
     data_manager.setup("test")
 
     # model
