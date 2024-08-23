@@ -139,4 +139,5 @@ class GlideBuilder(BaseBuilder):
             log_model=False,  # log W&B artifacts
             project="my-burdensome-project",
             name=self.kwargs.model_name + f"_{self.time_stamp}",
+            offline=True,
         )

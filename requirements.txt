@@ -13,3 +13,4 @@ geopandas
 pydantic
 lightning
 einops
+rasterio
