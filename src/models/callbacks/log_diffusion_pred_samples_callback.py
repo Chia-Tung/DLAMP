@@ -14,7 +14,6 @@ class LogDiffusionPredSamplesCallback(LogPredictionSamplesCallback):
 
         self.fig_gt_list = []
         self.fig_fg_list = []
-        self.fig_target_list = []
 
     def on_validation_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
         global_step = trainer.global_step
@@ -49,17 +48,13 @@ class LogDiffusionPredSamplesCallback(LogPredictionSamplesCallback):
             # shape: (H, W); type: np.ndarry
             tag_surface = np.squeeze(target["surface"].cpu().numpy())
             # denoising process
-            first_guess = first_guess[:, -1:, ...]  # only radar
             outputs = pl_module.denoising(first_guess, target["upper_air"].device)
             output_plot = []
             steps = []
             for step, output in outputs.items():
-                # _, output_surface = pl_module.deconstruct(output, upper_ch, surface_ch)
-                # output_surface = output_surface.cpu().numpy()
-                # output_surface = np.squeeze(destandardization(output_surface))
-                output_surface = np.squeeze(
-                    destandardization(output.unsqueeze(-1).cpu().numpy())
-                )
+                _, output_surface = pl_module.deconstruct(output, upper_ch, surface_ch)
+                output_surface = output_surface.cpu().numpy()
+                output_surface = np.squeeze(destandardization(output_surface))
                 output_plot.append(output_surface)
                 steps.append(f"step_{step}")
 
@@ -70,12 +65,8 @@ class LogDiffusionPredSamplesCallback(LogPredictionSamplesCallback):
                 fig_fg, _ = self.painter.plot_1x1(
                     self.data_lon, self.data_lat, fgs_surface
                 )
-                fig_target, _ = self.painter.plot_1x1(
-                    self.data_lon, self.data_lat, tag_surface - fgs_surface
-                )
                 self.fig_gt_list.append(wandb.Image(fig_gt))
                 self.fig_fg_list.append(wandb.Image(fig_fg))
-                self.fig_target_list.append(wandb.Image(fig_target))
 
             fig_pd, _ = self.painter.plot_1xn(
                 self.data_lon, self.data_lat, output_plot, titles=steps
@@ -90,7 +81,6 @@ class LogDiffusionPredSamplesCallback(LogPredictionSamplesCallback):
             {
                 "ground truth": self.fig_gt_list,
                 "first guess": self.fig_fg_list,
-                "diffusion target": self.fig_target_list,
                 "diffusion": fig_pd_list,
                 "final output": fig_final_list,
             }

@@ -111,16 +111,12 @@ class DiffusionLightningModule(L.LightningModule):
         target = self.restruct_dimension(target["upper_air"], target["surface"])
         B = target.shape[0]
 
-        # only radar @ surface
-        first_guess = first_guess[:, -1:, ...]
-        target = target[:, -1:, ...]
-
         # device check
         if self.beta.device != target.device:
             self.beta = self.beta.to(target.device)
 
         # DDPM
-        x_0 = target - first_guess  # (B, C, H, W)
+        x_0 = target  # (B, C, H, W)
         t = torch.randint(0, self.hparams.timesteps, (B,), dtype=torch.long).to(
             target.device
         )  # (B,)

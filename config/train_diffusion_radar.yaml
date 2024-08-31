@@ -21,7 +21,6 @@ lightning:
   limit_val_batches: null
 
 model:
-  image_channels: 1
   hidden_dim: 32
 
 defaults:

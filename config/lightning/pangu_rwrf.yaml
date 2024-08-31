@@ -25,11 +25,11 @@ strategy: "auto"
 fast_dev_run: False
 max_epochs: null
 max_steps: null
-min_steps: 1e7 # 10M
+min_steps: 1e6 # 1M
 limit_train_batches: null
 limit_val_batches: null
 early_stop_patience: 10
-log_image_every_n_steps: 5e5
-log_every_n_steps: 5e4
+log_image_every_n_steps: 5e4
+log_every_n_steps: 5e3
 resume_from_checkpoint: null
 precision: "bf16-mixed"

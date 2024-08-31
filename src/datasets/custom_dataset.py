@@ -120,6 +120,8 @@ class CustomDataset(Dataset):
             stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
             if is_output and self._model_name == "Pangu":
                 stack_data = self.average_pooling(stack_data)
+            elif is_output and self._model_name == "Glide":
+                stack_data = stack_data - self.average_pooling(stack_data)
             final[key] = stack_data  # {'upper_air': (lv, h, w, c), ...}
 
         return final

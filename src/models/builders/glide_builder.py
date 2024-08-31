@@ -39,7 +39,7 @@ class GlideBuilder(BaseBuilder):
 
     def _backbone_model(self) -> nn.Module:
         return GlideUNet(
-            image_channels=getattr(self.kwargs, "image_channels", self.input_channels),
+            image_channels=self.input_channels,
             hidden_dim=self.kwargs.hidden_dim,
             ch_mults=self.kwargs.ch_mults,
             is_attn=self.kwargs.is_attn,
