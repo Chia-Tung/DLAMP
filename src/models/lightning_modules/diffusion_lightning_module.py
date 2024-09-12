@@ -116,7 +116,7 @@ class DiffusionLightningModule(L.LightningModule):
             self.beta = self.beta.to(target.device)
 
         # DDPM
-        x_0 = target  # (B, C, H, W)
+        x_0 = target - first_guess  # (B, C, H, W)
         t = torch.randint(0, self.hparams.timesteps, (B,), dtype=torch.long).to(
             target.device
         )  # (B,)
