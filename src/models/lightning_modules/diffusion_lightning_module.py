@@ -2,19 +2,26 @@ import lightning as L
 import onnxruntime as ort
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from einops import rearrange
 from torch.utils.data import DataLoader
 from tqdm import trange
 
+from ..diffusion_process import DDIMProcess, DDPMProcess
 from ..model_utils import RunningAverage
 
 
-class DiffusionLightningModule(L.LightningModule):
+class DiffusionLightningModule(L.LightningModule, DDPMProcess):
     def __init__(
         self, *, test_dataloader, backbone_model_fn, regression_model_fn, **kwargs
     ):
         super().__init__()
+        DDPMProcess.__init__(
+            self,
+            n_steps=kwargs["timesteps"],
+            min_beta=kwargs["beta_start"],
+            max_beta=kwargs["beta_end"],
+        )
+
         self.save_hyperparameters(
             ignore=["test_dataloader", "backbone_model_fn", "regression_model_fn"]
         )
@@ -26,11 +33,6 @@ class DiffusionLightningModule(L.LightningModule):
         self.regress_ort: ort.InferenceSession = None
         self.loss = nn.MSELoss()
         self.loss_record = RunningAverage()
-
-        # DDPM
-        self.beta = self.linear_beta_schedule(
-            self.hparams.timesteps, self.hparams.beta_start, self.hparams.beta_end
-        )
 
     def forward(self, noisy_img, time_step, condtion) -> torch.Tensor:
         """
@@ -111,15 +113,10 @@ class DiffusionLightningModule(L.LightningModule):
         target = self.restruct_dimension(target["upper_air"], target["surface"])
         B = target.shape[0]
 
-        # device check
-        if self.beta.device != target.device:
-            self.beta = self.beta.to(target.device)
-
         # DDPM
         x_0 = target - first_guess  # (B, C, H, W)
-        t = torch.randint(0, self.hparams.timesteps, (B,), dtype=torch.long).to(
-            target.device
-        )  # (B,)
+        t = torch.randint(0, self.hparams.timesteps, (B,), dtype=torch.long)  # (B,)
+        t = t.to(self.device)
         x_t, noise = self.q_xt_x0(x_0, t)
         pred_noise = self(x_t.float(), t, first_guess.float())
         loss = self.loss(pred_noise, noise)
@@ -200,21 +197,6 @@ class DiffusionLightningModule(L.LightningModule):
         x_surface = rearrange(x_surface, "b c h w -> b 1 h w c")
         return x_upper, x_surface
 
-    def gather(self, consts: torch.Tensor, t: torch.Tensor, x_dim: int):
-        """
-        Gather consts for t and reshape to feature map shape
-
-        Args:
-            consts (torch.Tensor): Tensor of shape (num_diffusion_steps,)
-            t (torch.Tensor): Tensor of shape (batch_size,)
-            x_dim (int): Number of dimensions of the input image
-
-        Returns:
-            torch.Tensor: Tensor of shape (batch_size, 1, 1, 1)
-        """
-        c = consts.gather(-1, t)
-        return c.reshape(-1, *((1,) * (x_dim - 1)))
-
     def denoising(
         self, cond: torch.Tensor, device: torch.device
     ) -> dict[int, torch.Tensor]:
@@ -228,69 +210,7 @@ class DiffusionLightningModule(L.LightningModule):
             t = torch.full((B,), step, dtype=torch.long).to(device)
             with torch.no_grad():
                 pred_noise = self(x, t, cond)
-                x = self.p_xt(x, pred_noise, t)
+                x = self.sampling(x, pred_noise, t)
             if step % (self.hparams.timesteps // 5) == 0:
                 ims[step] = x
         return ims
-
-    def q_xt_xtminus1(self, xtminus1: torch.Tensor, t: torch.Tensor):
-        # √(1−βt)*xtm1
-        alpha = 1.0 - self.beta
-        alpha_t = self.gather(alpha, t, xtminus1.dim())
-        mean = torch.sqrt(alpha_t) * xtminus1
-        # βt I
-        var = self.gather(self.beta, t, xtminus1.dim())
-        # Noise shaped like xtm1
-        eps = torch.randn_like(xtminus1)
-        return mean + torch.sqrt(var) * eps, eps
-
-    def q_xt_x0(self, x0: torch.Tensor, t: torch.Tensor):
-        alpha = 1.0 - self.beta
-        alpha_bar = torch.cumprod(alpha, dim=0)
-        sqrt_alpha_bar = torch.sqrt(alpha_bar)
-        sqrt_one_minus_alpha_bar = torch.sqrt(1.0 - alpha_bar)
-
-        mean = self.gather(sqrt_alpha_bar, t, x0.dim()) * x0
-        var = self.gather(sqrt_one_minus_alpha_bar, t, x0.dim())
-        eps = torch.randn_like(x0)
-        return mean + var * eps, eps
-
-    def p_xt(self, xt: torch.Tensor, noise: torch.Tensor, t: torch.Tensor):
-        if self.beta.device != xt.device:
-            self.beta = self.beta.to(xt.device)
-        alpha = 1.0 - self.beta
-        alpha_bar = torch.cumprod(alpha, dim=0)
-        alpha_bar_prev = F.pad(alpha_bar[:-1], (1, 0), value=1.0)
-        alpha_t = self.gather(alpha, t, xt.dim())
-        alpha_bar_t = self.gather(alpha_bar, t, xt.dim())
-
-        eps_coef = (1 - alpha_t) / torch.sqrt(1 - alpha_bar_t)
-        mean = (xt - eps_coef * noise) / torch.sqrt(alpha_t)
-
-        posterior_var = self.beta * (1.0 - alpha_bar_prev) / (1.0 - alpha_bar)
-        var = self.gather(posterior_var, t, xt.dim())
-        eps = torch.randn_like(xt)
-        if t == 0:
-            return mean
-        else:
-            return mean + torch.sqrt(var) * eps
-
-    def cosine_beta_schedule(self, timesteps, s=0.008):
-        steps = timesteps + 1
-        x = torch.linspace(0, timesteps, steps)
-        alphas_cumprod = (
-            torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
-        )
-        alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-        betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-        return torch.clip(betas, 0.0001, 0.9999)
-
-    def linear_beta_schedule(self, timesteps, beta_start, beta_end):
-        return torch.linspace(beta_start, beta_end, timesteps)
-
-    def quadratic_beta_schedule(self, timesteps, beta_start, beta_end):
-        return torch.linspace(beta_start**0.5, beta_end**0.5, timesteps) ** 2
-
-    def sigmoid_beta_schedule(self, timesteps, beta_start, beta_end):
-        betas = torch.linspace(-6, 6, timesteps)
-        return torch.sigmoid(betas) * (beta_end - beta_start) + beta_start

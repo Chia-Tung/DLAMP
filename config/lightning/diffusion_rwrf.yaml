@@ -4,13 +4,13 @@ output_len: 1
 split_config:
   ratios: [6, 2, 2]
   order_by_time: True
-sampling_rate: 1
+sampling_rate: 1 # must be 1, or index of testing dataloader will mess up
 batch_size: 1
 workers: 16
 # LightningModule
 regression_onnx_path: "./export/Pangu_model.onnx"
 image_shape: [224, 224]
-loss_factor: 1
+loss_factor: 10
 optim_config:
   name: AdamW
   args:
