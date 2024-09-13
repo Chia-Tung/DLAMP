@@ -35,8 +35,9 @@ def main(cfg: DictConfig) -> None:
 
     # export onnx
     pl_module = pl_module.cuda()
+    date = cfg.inference.best_ckpt.split("_")[1]  # e.g. 240831
     pl_module.to_onnx(
-        file_path=f"./export/{cfg.model.model_name}_model.onnx",
+        file_path=f"./export/{cfg.model.model_name}_model_{date}.onnx",
         input_sample=(inp_data["upper_air"], inp_data["surface"]),
         export_params=True,
         verbose=False,

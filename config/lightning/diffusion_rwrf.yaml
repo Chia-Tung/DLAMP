@@ -8,7 +8,7 @@ sampling_rate: 1 # must be 1, or index of testing dataloader will mess up
 batch_size: 1
 workers: 16
 # LightningModule
-regression_onnx_path: "./export/Pangu_model.onnx"
+regression_onnx_path: "./export/Pangu_model_240831.onnx"
 image_shape: [224, 224]
 loss_factor: 10
 optim_config:
@@ -18,7 +18,7 @@ optim_config:
 warmup_epochs: 20
 # lightning.Trainer
 num_gpus: null
-strategy: "ddp"
+strategy: "auto"
 fast_dev_run: False
 max_epochs: null
 max_steps: null
