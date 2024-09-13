@@ -213,6 +213,7 @@ def get_scheduler_with_warmup(
         case _:
             raise ValueError(f"Unsupported schedule type: {schedule_type}")
 
+
 class RunningAverage:
     def __init__(self):
         self._N = 0
