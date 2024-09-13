@@ -4,6 +4,7 @@ ch_mults: [1, 2, 2, 4]
 is_attn: [False, False, False, True]
 n_blocks: 2
 # diffusion
+diffusion_type: DDIM
 timesteps: 300
 beta_start: 1e-4
 beta_end: 4e-2

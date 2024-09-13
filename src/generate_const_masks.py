@@ -3,7 +3,9 @@ from datetime import datetime
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
 import yaml
+from scipy.interpolate import RegularGridInterpolator
 from tqdm import trange
 
 from .const import LAND_SEA_MASK_PATH, TOPOGRAPHY_MASK_PATH
@@ -30,7 +32,8 @@ def gen_const_masks():
         datetime(2022, 10, 1, 0), {"Lat": ["NoRule"], "Lon": ["NoRule"]}
     )
 
-    # real terrain data
+    """
+    # Taiwan-only terrain data
     # OBJECTID_1	OBJECTID	townname	countyname	BASIN_NAME	N_1	E_1	高程	坡度	坡向	Shape_Leng	ORIG_FID	geometry
     # 0	1	1	None	None	None	25.3000	120.0	0.0	0.0	0.0	0.05	0	POINT (120.00000 25.30000)
     # 1	2	2	None	None	None	25.2875	120.0	0.0	0.0	0.0	0.05	1	POINT (120.00000 25.28750)
@@ -42,7 +45,6 @@ def gen_const_masks():
     terrain_lat: np.ndarray = np.sort(terrain_data["N_1"].unique())  # (273,)
     terrain_lon: np.ndarray = np.sort(terrain_data["E_1"].unique())  # (161,)
     assert len(terrain_lat) * len(terrain_lon) == len(terrain_data)
-
     # mapping
     terrain_mask = np.zeros_like(target_lat, dtype=np.float32)
     for i in trange(target_lat.shape[0]):
@@ -65,6 +67,27 @@ def gen_const_masks():
                 & (terrain_data["N_1"] == closest_lat)
             ]
             terrain_mask[i, j] = combined_filter["高程"].values
+    """
+
+    # East Asia terrain data
+    filename = "./assets/terrain_shp/gt30e100n40.tif"
+    with rasterio.open(filename) as src:
+        # Read the data
+        terrain_data = src.read(1)
+        # Display basic information
+        print(f"Width: {src.width}, Height: {src.height}")
+        print(f"Coordinate Reference System: {src.crs}")
+        print(f"Bounds: {src.bounds}")
+
+    geo_lat = np.linspace(40, -10, src.height)
+    geo_lon = np.linspace(100, 140, src.width)
+    interp = RegularGridInterpolator((geo_lat, geo_lon), terrain_data)
+    # Flatten the meshgrid for interpolation
+    points = np.column_stack((target_lat.ravel(), target_lon.ravel()))
+    print("Interpolating...")
+    terrain_mask = interp(points)
+    terrain_mask = terrain_mask.reshape(target_lon.shape)
+    terrain_mask = np.where(terrain_mask < 0, 0, terrain_mask)
 
     # save npy
     np.save(TOPOGRAPHY_MASK_PATH, terrain_mask)

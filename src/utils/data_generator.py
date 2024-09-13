@@ -4,7 +4,7 @@ from typing import Callable, Sequence
 import numpy as np
 import torch
 from einops.layers.torch import Rearrange
-from torchvision.transforms.v2 import CenterCrop, Compose, Resize, ToDtype, ToImage
+from torchvision.transforms.v2 import CenterCrop, Compose, Resize
 
 from .data_compose import DataCompose
 from .file_util import gen_data
@@ -70,7 +70,8 @@ class DataGenerator:
             torch.Tensor or np.ndarray: The processed data in shape (H, W).
         """
         np_data = gen_data(target_time, data_compose, dtype=np.float32)  # (H, W)
-        processed_data: torch.Tensor = self.preprocess(np_data[:, :, None])  # (H, W)
+        torch_data = torch.from_numpy(np_data[None]).type(torch.float32)  # (1, H, W)
+        processed_data: torch.Tensor = self.preprocess(torch_data)  # (H, W)
         return processed_data.numpy() if to_numpy else processed_data
 
     def _preprocess(self) -> torch.Tensor:
@@ -88,10 +89,8 @@ class DataGenerator:
         factors = [x // y for x, y in zip(self._data_shp, self._img_shp)]
         return Compose(
             [
-                ToImage(),
                 CenterCrop([n * x for n, x in zip(factors, self._img_shp)]),
                 Resize(self._img_shp),
-                ToDtype(torch.float32),
                 Rearrange("c h w -> (c h) w"),
             ]
         )

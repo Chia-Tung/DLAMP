@@ -13,7 +13,7 @@ from visual import *
 @hydra.main(version_base=None, config_path="config", config_name="predict")
 def main(cfg: DictConfig) -> None:
     OmegaConf.set_struct(cfg, True)
-    eval_cases = [datetime(2021, 8, 7), datetime(2022, 9, 12)]
+    eval_cases = [datetime(2022, 9, 12)] # datetime(2021, 8, 7)
 
     # Inference
     if cfg.inference.infer_type == "ckpt":

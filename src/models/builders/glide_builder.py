@@ -21,7 +21,8 @@ from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
 from ..architectures import GlideUNet
 from ..callbacks import LogDiffusionPredSamplesCallback
-from ..lightning_modules import DiffusionLightningModule
+from ..diffusion_process import DDIMProcess, DDPMProcess
+from ..lightning_modules import create_diffusion_module
 from .base_builder import BaseBuilder
 
 __all__ = ["GlideBuilder"]
@@ -39,7 +40,7 @@ class GlideBuilder(BaseBuilder):
 
     def _backbone_model(self) -> nn.Module:
         return GlideUNet(
-            image_channels=getattr(self.kwargs, "image_channels", self.input_channels),
+            image_channels=self.input_channels,
             hidden_dim=self.kwargs.hidden_dim,
             ch_mults=self.kwargs.ch_mults,
             is_attn=self.kwargs.is_attn,
@@ -50,7 +51,14 @@ class GlideBuilder(BaseBuilder):
         return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
-        return DiffusionLightningModule(
+        if self.kwargs.diffusion_type == "DDPM":
+            parent_class = DDPMProcess
+        elif self.kwargs.diffusion_type == "DDIM":
+            parent_class = DDIMProcess
+        else:
+            raise ValueError("Invalid base class name.")
+
+        return create_diffusion_module(parent_class)(
             test_dataloader=test_dataloader,
             backbone_model_fn=self._backbone_model,
             regression_model_fn=self._regression_model(),
@@ -108,7 +116,7 @@ class GlideBuilder(BaseBuilder):
             log_every_n_steps=self.kwargs.log_every_n_steps,  # only affect train_loss
             # -1: infinite epochs, None: default 1000 epochs
             max_epochs=getattr(self.kwargs, "max_epochs", None),
-            # max_epoch must be valid, min_steps is prior to early stopping
+            # If min_steps > 0, max_epoch must be valid. And min_steps is prior to early stopping
             min_steps=getattr(self.kwargs, "min_steps", -1),
             limit_train_batches=getattr(self.kwargs, "limit_train_batches", None),
             limit_val_batches=getattr(self.kwargs, "limit_val_batches", None),
@@ -118,12 +126,14 @@ class GlideBuilder(BaseBuilder):
             profiler=PyTorchProfiler(
                 dirpath="./profiler", filename=f"{self.__class__.__name__}"
             ),
+            precision=self.kwargs.precision,
         )
 
     def checkpoint_callback(self) -> ModelCheckpoint:
         return ModelCheckpoint(
             dirpath=CHECKPOINT_DIR,
             filename=self.kwargs.model_name
+            + f"_{self.kwargs.diffusion_type}"
             + f"_{self.time_stamp}"
             + "-{epoch:03d}-{val_loss_epoch:.6f}",
             save_top_k=1,
@@ -138,5 +148,8 @@ class GlideBuilder(BaseBuilder):
             save_dir=save_dir,
             log_model=False,  # log W&B artifacts
             project="my-burdensome-project",
-            name=self.kwargs.model_name + f"_{self.time_stamp}",
+            name=self.kwargs.model_name
+            + f"_{self.kwargs.diffusion_type}"
+            + f"_{self.time_stamp}",
+            offline=True,
         )

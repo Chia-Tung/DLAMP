@@ -8,6 +8,8 @@ outputs/
 
 # logger (e.g. Tensorboard, wandb)
 logs/
+*.err
+*.out
 
 # checkpoint
 checkpoints/

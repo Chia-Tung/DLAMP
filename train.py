@@ -12,9 +12,7 @@ from src.utils import DataCompose
 log = logging.getLogger(__name__)
 
 
-@hydra.main(
-    version_base=None, config_path="config", config_name="train_diffusion_radar"
-)
+@hydra.main(version_base=None, config_path="config", config_name="train_diffusion")
 def main(cfg: DictConfig) -> None:
     hydra_oup_dir = Path(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir)
     log.info(f"Working directory: {Path.cwd()}")
