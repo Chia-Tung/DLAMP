@@ -9,7 +9,7 @@ from lightning.pytorch.callbacks import (
     ModelCheckpoint,
 )
 from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.profilers import PyTorchProfiler
+from lightning.pytorch.profilers import AdvancedProfiler
 from torch.utils.data import DataLoader
 
 from ...const import CHECKPOINT_DIR
@@ -117,7 +117,7 @@ class PanguBuilder(BaseBuilder):
             devices=[i for i in range(num_gpus)],
             strategy=strategy,
             callbacks=callbacks,
-            profiler=PyTorchProfiler(
+            profiler=AdvancedProfiler(
                 dirpath="./profiler", filename=f"{self.__class__.__name__}"
             ),
             precision=self.kwargs.precision,

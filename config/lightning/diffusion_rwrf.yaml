@@ -4,7 +4,7 @@ output_len: 1
 split_config:
   ratios: [6, 2, 2]
   order_by_time: True
-sampling_rate: 1 # must be 1, or index of testing dataloader will mess up
+sampling_rate: 1
 batch_size: 1
 workers: 16
 # LightningModule

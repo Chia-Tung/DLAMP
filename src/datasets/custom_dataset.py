@@ -22,7 +22,7 @@ class CustomDataset(Dataset):
         sampling_rate: int,
         init_time_list: list[datetime],
         data_list: list[DataCompose],
-        is_train: bool,
+        is_valid: bool,
     ):
         super().__init__()
         self._ilen = inp_len
@@ -32,7 +32,7 @@ class CustomDataset(Dataset):
         self._sr = sampling_rate
         self._init_time_list = init_time_list
         self._data_list = data_list
-        self._is_train = is_train
+        self._is_valid = is_valid
 
         if Path(STANDARDIZATION_PATH).exists():
             with open(STANDARDIZATION_PATH, "r") as f:
@@ -46,9 +46,9 @@ class CustomDataset(Dataset):
         the number of items in the dataset.
         """
         return (
-            len(self._init_time_list)
-            if self._is_train
-            else len(self._init_time_list) // self._sr
+            len(self._init_time_list) // self._sr
+            if self._is_valid
+            else len(self._init_time_list)
         )
 
     def __getitem__(self, index):
@@ -61,7 +61,7 @@ class CustomDataset(Dataset):
         Returns:
             tuple: A tuple containing the input and output data.
         """
-        if not self._is_train:
+        if self._is_valid:
             index *= self._sr
         input_time = self._init_time_list[index]
         input = self._get_variables_from_dt(input_time)
@@ -131,7 +131,7 @@ class CustomDataset(Dataset):
             int: The index of the datetime object in the `_init_time_list` attribute.
         """
         idx = self._init_time_list.index(dt)
-        return idx if self._is_train else idx // self._sr
+        return idx // self._sr if self._is_valid else idx
 
     def average_pooling(
         self, data: np.ndarray, kernel_size: int = 9, stride: int = 1
