@@ -4,6 +4,7 @@ from typing import Callable
 import onnxruntime as ort
 import torch
 import torch.nn as nn
+from hydra import compose, initialize
 from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import (
     EarlyStopping,
@@ -24,6 +25,7 @@ from ..callbacks import LogDiffusionPredSamplesCallback
 from ..diffusion_process import DDIMProcess, DDPMProcess
 from ..lightning_modules import create_diffusion_module
 from .base_builder import BaseBuilder
+from .pangu_builder import PanguBuilder
 
 __all__ = ["GlideBuilder"]
 
@@ -34,6 +36,7 @@ class GlideBuilder(BaseBuilder):
 
         self.time_stamp = convert_hydra_dir_to_timestamp(hydra_dir)
         self.input_channels = len(data_list)
+        self.data_list = data_list
 
         self.info_log(f"Input Image Shape: {self.kwargs.image_shape}")
         self.info_log(f"Glide Unet Layers: {len(self.kwargs.ch_mults)}")
@@ -47,8 +50,34 @@ class GlideBuilder(BaseBuilder):
             n_blocks=self.kwargs.n_blocks,
         )
 
-    def _regression_model(self) -> Callable[[int], ort.InferenceSession]:
-        return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
+    def _regression_model(self) -> Callable[[torch.device], nn.Module]:
+        if self.kwargs.regression_onnx_path:
+            return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
+        elif self.kwargs.regressoin_ckpt_path:
+            return self._load_pangu_model(ckpt_path=self.kwargs.regressoin_ckpt_path)
+        else:
+            raise ValueError(
+                "Either regression_onnx_path or regressoin_ckpt_path must be provided."
+            )
+
+    def _load_pangu_model(self, ckpt_path: str) -> Callable[[torch.device], nn.Module]:
+        with initialize(version_base=None, config_path="config"):
+            cfg = compose(config_name="train_pangu")
+
+        # build model
+        pangu_builder = PanguBuilder(
+            "dummy", self.data_list, **cfg.model, **cfg.lightning
+        )
+        model = pangu_builder._backbone_model()
+
+        # load weights from checkpoint
+        ckpt = torch.load(ckpt_path)
+        state_dict = {
+            k.replace("backbone_model.", ""): v for k, v in ckpt["state_dict"].items()
+        }
+        model.load_state_dict(state_dict)
+
+        return lambda device: model.to(device)
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         if self.kwargs.diffusion_type == "DDPM":
@@ -123,9 +152,9 @@ class GlideBuilder(BaseBuilder):
             devices=[i for i in range(num_gpus)],
             strategy=strategy,
             callbacks=callbacks,
-            profiler=AdvancedProfiler(
-                dirpath="./profiler", filename=f"{self.__class__.__name__}"
-            ),
+            # profiler=AdvancedProfiler(
+            #     dirpath="./profiler", filename=f"{self.__class__.__name__}"
+            # ),
             precision=self.kwargs.precision,
         )
 

@@ -117,9 +117,9 @@ class PanguBuilder(BaseBuilder):
             devices=[i for i in range(num_gpus)],
             strategy=strategy,
             callbacks=callbacks,
-            profiler=AdvancedProfiler(
-                dirpath="./profiler", filename=f"{self.__class__.__name__}"
-            ),
+            # profiler=AdvancedProfiler(
+            #     dirpath="./profiler", filename=f"{self.__class__.__name__}"
+            # ),
             precision=self.kwargs.precision,
         )
 

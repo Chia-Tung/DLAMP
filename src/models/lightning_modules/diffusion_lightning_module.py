@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 
 from ..diffusion_process import DDIMProcess, DDPMProcess
+from ..loss_fn import EuclideanLoss
 from ..model_utils import RunningAverage
 
 
@@ -37,7 +38,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             self.backbone_model: nn.Module = None
             self.regression_model_fn = regression_model_fn
             self.regress_ort: ort.InferenceSession = None
-            self.loss = nn.MSELoss()
+            self.loss = EuclideanLoss()
             self.loss_record = RunningAverage()
 
         def forward(self, noisy_img, time_step, condtion) -> torch.Tensor:
@@ -239,7 +240,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                     if step % (self.hparams.timesteps // 5) == 0:
                         ims[step] = x
             elif DDIMProcess in self.__class__.__bases__:
-                ddim_steps = 25
+                ddim_steps = 100
                 skipped_steps = torch.linspace(
                     self.hparams.timesteps, 0, (ddim_steps + 1), dtype=torch.long
                 )
@@ -253,7 +254,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                         x = self.sampling(
                             x, pred_noise, curr_t, prev_t, eta=0, simple_var=False
                         )
-                    if step % 5 == 0:
+                    if step % 20 == 0:
                         key = int(prev_t + 1)
                         ims[key] = x
             return ims

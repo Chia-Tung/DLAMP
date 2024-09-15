@@ -5,6 +5,6 @@ is_attn: [False, False, False, True]
 n_blocks: 2
 # diffusion
 diffusion_type: DDIM
-timesteps: 300
+timesteps: 500
 beta_start: 1e-4
 beta_end: 4e-2

@@ -9,8 +9,9 @@ batch_size: 1
 workers: 16
 # LightningModule
 regression_onnx_path: "./export/Pangu_model_240831.onnx"
+regressoin_ckpt_path: null
 image_shape: [224, 224]
-loss_factor: 10
+loss_factor: 1
 optim_config:
   name: AdamW
   args:
