@@ -4,7 +4,7 @@ from typing import Callable
 import onnxruntime as ort
 import torch
 import torch.nn as nn
-from hydra import compose, initialize
+import yaml
 from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import (
     EarlyStopping,
@@ -61,12 +61,14 @@ class GlideBuilder(BaseBuilder):
             )
 
     def _load_pangu_model(self, ckpt_path: str) -> Callable[[torch.device], nn.Module]:
-        with initialize(version_base=None, config_path="config"):
-            cfg = compose(config_name="train_pangu")
+        with open("./config/model/pangu_rwrf.yaml") as stream:
+            cfg_model = yaml.safe_load(stream)
+        with open("./config/lightning/pangu_rwrf.yaml") as stream:
+            cfg_lightning = yaml.safe_load(stream)
 
         # build model
         pangu_builder = PanguBuilder(
-            "dummy", self.data_list, **cfg.model, **cfg.lightning
+            "dummy", self.data_list, **cfg_model, **cfg_lightning
         )
         model = pangu_builder._backbone_model()
 

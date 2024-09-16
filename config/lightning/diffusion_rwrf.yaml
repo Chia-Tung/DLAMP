@@ -8,8 +8,8 @@ sampling_rate: 1
 batch_size: 1
 workers: 16
 # LightningModule
-regression_onnx_path: "./export/Pangu_model_240831.onnx"
-regressoin_ckpt_path: null
+regression_onnx_path: null
+regressoin_ckpt_path: "./checkpoints/Pangu_240831_141548-epoch=423-val_loss_epoch=0.1560.ckpt"
 image_shape: [224, 224]
 loss_factor: 1
 optim_config:
