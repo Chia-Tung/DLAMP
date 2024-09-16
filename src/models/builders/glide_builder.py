@@ -4,7 +4,6 @@ from typing import Callable
 import onnxruntime as ort
 import torch
 import torch.nn as nn
-import yaml
 from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import (
     EarlyStopping,
@@ -16,7 +15,7 @@ from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.strategies import FSDPStrategy
 from torch.utils.data import DataLoader
 
-from inference.infer_utils import init_ort_instance
+from inference.infer_utils import init_ort_instance, load_pangu_model
 
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
@@ -25,7 +24,6 @@ from ..callbacks import LogDiffusionPredSamplesCallback
 from ..diffusion_process import DDIMProcess, DDPMProcess
 from ..lightning_modules import create_diffusion_module
 from .base_builder import BaseBuilder
-from .pangu_builder import PanguBuilder
 
 __all__ = ["GlideBuilder"]
 
@@ -54,32 +52,13 @@ class GlideBuilder(BaseBuilder):
         if self.kwargs.regression_onnx_path:
             return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
         elif self.kwargs.regressoin_ckpt_path:
-            return self._load_pangu_model(ckpt_path=self.kwargs.regressoin_ckpt_path)
+            return load_pangu_model(
+                ckpt_path=self.kwargs.regressoin_ckpt_path, data_list=self.data_list
+            )
         else:
             raise ValueError(
                 "Either regression_onnx_path or regressoin_ckpt_path must be provided."
             )
-
-    def _load_pangu_model(self, ckpt_path: str) -> Callable[[torch.device], nn.Module]:
-        with open("./config/model/pangu_rwrf.yaml") as stream:
-            cfg_model = yaml.safe_load(stream)
-        with open("./config/lightning/pangu_rwrf.yaml") as stream:
-            cfg_lightning = yaml.safe_load(stream)
-
-        # build model
-        pangu_builder = PanguBuilder(
-            "dummy", self.data_list, **cfg_model, **cfg_lightning
-        )
-        model = pangu_builder._backbone_model()
-
-        # load weights from checkpoint
-        ckpt = torch.load(ckpt_path)
-        state_dict = {
-            k.replace("backbone_model.", ""): v for k, v in ckpt["state_dict"].items()
-        }
-        model.load_state_dict(state_dict)
-
-        return lambda device: model.to(device)
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         if self.kwargs.diffusion_type == "DDPM":

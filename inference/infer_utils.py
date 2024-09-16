@@ -1,10 +1,15 @@
 from collections import defaultdict
 from functools import partial, wraps
+from typing import Callable
 
 import onnxruntime as ort
 import torch
+import yaml
+from torch import nn
 
+from src.models.builders.pangu_builder import PanguBuilder
 from src.standardization import destandardization
+from src.utils import DataCompose
 
 
 def prediction_postprocess(
@@ -97,3 +102,25 @@ def init_ort_instance(gpu_id: int, onnx_path: str) -> ort.InferenceSession:
             "CPUExecutionProvider",
         ],
     )
+
+
+def load_pangu_model(
+    ckpt_path: str, data_list: list[DataCompose]
+) -> Callable[[torch.device], nn.Module]:
+    with open("./config/model/pangu_rwrf.yaml") as stream:
+        cfg_model = yaml.safe_load(stream)
+    with open("./config/lightning/pangu_rwrf.yaml") as stream:
+        cfg_lightning = yaml.safe_load(stream)
+
+    # build model
+    pangu_builder = PanguBuilder("dummy", data_list, **cfg_model, **cfg_lightning)
+    model = pangu_builder._backbone_model()
+
+    # load weights from checkpoint
+    ckpt = torch.load(ckpt_path)
+    state_dict = {
+        k.replace("backbone_model.", ""): v for k, v in ckpt["state_dict"].items()
+    }
+    model.load_state_dict(state_dict)
+
+    return lambda device: model.to(device)
