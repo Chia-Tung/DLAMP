@@ -4,13 +4,14 @@ output_len: 1
 split_config:
   ratios: [6, 2, 2]
   order_by_time: True
-sampling_rate: 1 # must be 1, or index of testing dataloader will mess up
+sampling_rate: 1
 batch_size: 1
 workers: 16
 # LightningModule
-regression_onnx_path: "./export/Pangu_model.onnx"
+regression_onnx_path: null
+regressoin_ckpt_path: "./checkpoints/Pangu_240831_141548-epoch=423-val_loss_epoch=0.1560.ckpt"
 image_shape: [224, 224]
-loss_factor: 10
+loss_factor: 1
 optim_config:
   name: AdamW
   args:
@@ -18,7 +19,7 @@ optim_config:
 warmup_epochs: 20
 # lightning.Trainer
 num_gpus: null
-strategy: "ddp"
+strategy: "auto"
 fast_dev_run: False
 max_epochs: null
 max_steps: null

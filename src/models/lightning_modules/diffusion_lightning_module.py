@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 
 from ..diffusion_process import DDIMProcess, DDPMProcess
+from ..loss_fn import EuclideanLoss
 from ..model_utils import RunningAverage
 
 
@@ -36,8 +37,8 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             self.backbone_model_fn = backbone_model_fn
             self.backbone_model: nn.Module = None
             self.regression_model_fn = regression_model_fn
-            self.regress_ort: ort.InferenceSession = None
-            self.loss = nn.MSELoss()
+            self.regress_model: ort.InferenceSession | nn.Module = None
+            self.loss = EuclideanLoss()
             self.loss_record = RunningAverage()
 
         def forward(self, noisy_img, time_step, condtion) -> torch.Tensor:
@@ -84,11 +85,11 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             """
             Speed up model initialization. Trainer can create model directly on GPU.
             """
-            if self.backbone_model is not None and self.regress_ort is not None:
+            if self.backbone_model is not None and self.regress_model is not None:
                 return
 
             self.backbone_model = self.backbone_model_fn()
-            self.regress_ort = self.regression_model_fn(self.global_rank)
+            self.regress_model = self.regression_model_fn(self.global_rank)
 
         def common_step(self, inp_data, target):
             """
@@ -107,24 +108,8 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             Returns:
                 loss: the CRPS loss
             """
-            ort_inputs = {
-                self.regress_ort.get_inputs()[0]
-                .name: inp_data["upper_air"]
-                .cpu()
-                .numpy(),
-                self.regress_ort.get_inputs()[1]
-                .name: inp_data["surface"]
-                .cpu()
-                .numpy(),
-            }
-            first_guess_upper, first_guess_surface = self.regress_ort.run(
-                None, ort_inputs
-            )
-            first_guess = self.restruct_dimension(
-                first_guess_upper,
-                first_guess_surface,
-                is_numpy=True,
-                device=target["upper_air"].device,
+            first_guess = self.inference_regression(
+                inp_data["upper_air"], inp_data["surface"], self.device
             )
             target = self.restruct_dimension(target["upper_air"], target["surface"])
             B = target.shape[0]
@@ -239,7 +224,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                     if step % (self.hparams.timesteps // 5) == 0:
                         ims[step] = x
             elif DDIMProcess in self.__class__.__bases__:
-                ddim_steps = 25
+                ddim_steps = self.hparams.timesteps // 5
                 skipped_steps = torch.linspace(
                     self.hparams.timesteps, 0, (ddim_steps + 1), dtype=torch.long
                 )
@@ -253,9 +238,53 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                         x = self.sampling(
                             x, pred_noise, curr_t, prev_t, eta=0, simple_var=False
                         )
-                    if step % 5 == 0:
+                    if step % (ddim_steps // 5) == 0:
                         key = int(prev_t + 1)
                         ims[key] = x
             return ims
+
+        def inference_regression(
+            self, input_upa: torch.Tensor, input_sfc: torch.Tensor, device: torch.device
+        ) -> torch.Tensor:
+            """
+            Inference process for the regression model. This process can be either onnxruntime-gpu
+            or original pytorch.
+
+            Args:
+                input_upa (torch.Tensor): (B, Lv, H, W, C1)
+                input_sfc (torch.Tensor): (B, 1, H, W, C2)
+                device (torch.device): Device of the output tensor.
+
+            Returns:
+                torch.Tensor: (B, Lv*C1+C2, H, W)
+            """
+            if self.regress_model is None:
+                self.regress_model = self.regression_model_fn(device)
+
+            if isinstance(self.regress_model, ort.InferenceSession):
+                ort_inputs = {
+                    self.regress_model.get_inputs()[0].name: input_upa.cpu().numpy(),
+                    self.regress_model.get_inputs()[1].name: input_sfc.cpu().numpy(),
+                }
+                first_guess_upper, first_guess_surface = self.regress_model.run(
+                    None, ort_inputs
+                )
+            elif isinstance(self.regress_model, torch.nn.Module):
+                with torch.inference_mode():
+                    first_guess_upper, first_guess_surface = self.regress_model(
+                        input_upa, input_sfc
+                    )
+                first_guess_surface = torch.clone(first_guess_surface).detach()
+                first_guess_upper = torch.clone(first_guess_upper).detach()
+            else:
+                raise NotImplementedError
+
+            first_guess = self.restruct_dimension(
+                first_guess_upper,
+                first_guess_surface,
+                is_numpy=isinstance(self.regress_model, ort.InferenceSession),
+                device=device,
+            )
+            return first_guess
 
     return DiffusionLightningModule

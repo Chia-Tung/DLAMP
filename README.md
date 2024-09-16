@@ -27,9 +27,9 @@ other packages
 pip3 install -r requirements.txt
 pip3 install hydra-core --upgrade
 ```
-install onnxruntime according to your CUDA version, please check [onnxruntime_official](https://onnxruntime.ai/docs/get-started/with-python.html#install-onnx-runtime) for more details.
+install onnxruntime according to your CUDA version, please check [onnxruntime_official](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#cuda-11x) for more details.
 ```
-pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+pip install onnxruntime-gpu==1.18.0
 ```
 
 # Quick Start
@@ -51,8 +51,8 @@ python predict.py
 # Model Zoo
 |Model Name|Total Params|Shape|Backbone|Reference|
 |:----:|:----:|:----:|:----:|:---:|
-|Swin-Transformer|29M|(B, 23, 224, 224)|-|[Pangu-weather](https://arxiv.org/abs/2211.02556)|
-|Diffusion Model (DDPM)|42M|(B, 1, 224, 224)|ResUNet|[DDPM](https://arxiv.org/abs/2006.11239)|
+|Swin-Transformer|29M|(B, 21, 224, 224)|-|[Pangu-weather](https://arxiv.org/abs/2211.02556)|
+|Diffusion Model (DDPM)|672M|(B, 21, 224, 224)|ResUNet|[DDPM](https://arxiv.org/abs/2006.11239)|
 
 # Acknowledgement
 This project is sponsored by the [Taiwan's Centeral Weather Administration](https://www.cwa.gov.tw/V8/C/) and the [Department of Atmospheric Sciences, NTU](https://www.as.ntu.edu.tw). Without the support of the governmental and educational institutions, this project is not possible. Also, big thanks to the co-author [Tracy](https://github.com/tracylo1221). She helps me make many plots and figures.

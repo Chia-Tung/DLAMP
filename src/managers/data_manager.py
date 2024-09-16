@@ -128,7 +128,7 @@ class DataManager(L.LightningDataModule):
             self.hparams.sampling_rate,
             ordered_time,
             self.data_list,
-            is_train=stage == "train",
+            is_valid=stage == "valid",
         )
 
     def train_dataloader(self):

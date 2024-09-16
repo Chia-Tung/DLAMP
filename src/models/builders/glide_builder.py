@@ -11,11 +11,11 @@ from lightning.pytorch.callbacks import (
     ModelCheckpoint,
 )
 from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.profilers import PyTorchProfiler
+from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.strategies import FSDPStrategy
 from torch.utils.data import DataLoader
 
-from inference.infer_utils import init_ort_instance
+from inference.infer_utils import init_ort_instance, load_pangu_model
 
 from ...const import CHECKPOINT_DIR
 from ...utils import DataCompose, convert_hydra_dir_to_timestamp
@@ -34,6 +34,7 @@ class GlideBuilder(BaseBuilder):
 
         self.time_stamp = convert_hydra_dir_to_timestamp(hydra_dir)
         self.input_channels = len(data_list)
+        self.data_list = data_list
 
         self.info_log(f"Input Image Shape: {self.kwargs.image_shape}")
         self.info_log(f"Glide Unet Layers: {len(self.kwargs.ch_mults)}")
@@ -47,8 +48,17 @@ class GlideBuilder(BaseBuilder):
             n_blocks=self.kwargs.n_blocks,
         )
 
-    def _regression_model(self) -> Callable[[int], ort.InferenceSession]:
-        return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
+    def _regression_model(self) -> Callable[[torch.device], nn.Module]:
+        if self.kwargs.regression_onnx_path:
+            return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
+        elif self.kwargs.regressoin_ckpt_path:
+            return load_pangu_model(
+                ckpt_path=self.kwargs.regressoin_ckpt_path, data_list=self.data_list
+            )
+        else:
+            raise ValueError(
+                "Either regression_onnx_path or regressoin_ckpt_path must be provided."
+            )
 
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         if self.kwargs.diffusion_type == "DDPM":
@@ -123,9 +133,9 @@ class GlideBuilder(BaseBuilder):
             devices=[i for i in range(num_gpus)],
             strategy=strategy,
             callbacks=callbacks,
-            profiler=PyTorchProfiler(
-                dirpath="./profiler", filename=f"{self.__class__.__name__}"
-            ),
+            # profiler=AdvancedProfiler(
+            #     dirpath="./profiler", filename=f"{self.__class__.__name__}"
+            # ),
             precision=self.kwargs.precision,
         )
 
