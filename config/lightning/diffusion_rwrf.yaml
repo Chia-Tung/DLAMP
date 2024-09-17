@@ -28,6 +28,6 @@ limit_train_batches: null
 limit_val_batches: null
 early_stop_patience: 10
 log_image_every_n_steps: 5e3
-log_every_n_steps: 5e2
+log_every_n_steps: 50 # default 50
 resume_from_checkpoint: null
 precision: "bf16-mixed"
