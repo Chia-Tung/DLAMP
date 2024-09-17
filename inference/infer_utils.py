@@ -117,7 +117,7 @@ def load_pangu_model(
     model = pangu_builder._backbone_model()
 
     # load weights from checkpoint
-    ckpt = torch.load(ckpt_path)
+    ckpt = torch.load(ckpt_path, weights_only=False)
     state_dict = {
         k.replace("backbone_model.", ""): v for k, v in ckpt["state_dict"].items()
     }

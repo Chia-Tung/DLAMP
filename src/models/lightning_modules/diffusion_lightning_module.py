@@ -91,6 +91,10 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             self.backbone_model = self.backbone_model_fn()
             self.regress_model = self.regression_model_fn(self.global_rank)
 
+            # freeze regression model
+            for param in self.regress_model.parameters():
+                param.requires_grad = False
+
         def common_step(self, inp_data, target):
             """
             Args:
@@ -274,8 +278,8 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                     first_guess_upper, first_guess_surface = self.regress_model(
                         input_upa, input_sfc
                     )
-                first_guess_surface = torch.clone(first_guess_surface).detach()
-                first_guess_upper = torch.clone(first_guess_upper).detach()
+                first_guess_surface = torch.clone(first_guess_surface).detach_()
+                first_guess_upper = torch.clone(first_guess_upper).detach_()
             else:
                 raise NotImplementedError
 
