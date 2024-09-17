@@ -14,13 +14,10 @@ hydra:
         level: DEBUG
 
 lightning:
-  sampling_rate: 1
   batch_size: 8
-  workers: 12
-  limit_train_batches: null
-  limit_val_batches: null
 
 model:
+  only_radar: True
   hidden_dim: 32
 
 defaults:
