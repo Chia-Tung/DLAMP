@@ -23,7 +23,7 @@ lr_schedule:
 num_gpus: null
 strategy: "auto"
 fast_dev_run: False
-max_epochs: null
+max_epochs: -1
 max_steps: null
 min_steps: 5e4 # 50k
 limit_train_batches: null

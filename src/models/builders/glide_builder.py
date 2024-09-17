@@ -76,7 +76,7 @@ class GlideBuilder(BaseBuilder):
             beta_start=self.kwargs.beta_start,
             beta_end=self.kwargs.beta_end,
             optim_config=self.kwargs.optim_config,
-            warmup_epochs=self.kwargs.warmup_epochs,
+            lr_schedule=self.kwargs.lr_schedule,
             loss_factor=self.kwargs.loss_factor,
             only_radar=self.only_radar,
         )
