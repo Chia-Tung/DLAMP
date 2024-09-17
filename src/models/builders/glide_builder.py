@@ -49,6 +49,35 @@ class GlideBuilder(BaseBuilder):
     def _regression_model(self) -> Callable[[int], ort.InferenceSession]:
         return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
 
+    def _regression_model_old(self, gpu_id: int) -> ort.InferenceSession:
+        assert "CUDAExecutionProvider" in ort.get_available_providers()
+
+        # An issue about onnxruntime for cuda12.x
+        # ref: https://github.com/microsoft/onnxruntime/issues/8313#issuecomment-1486097717
+        _default_session_options = ort.capi._pybind_state.get_default_session_options()
+
+        def get_default_session_options_new():
+            _default_session_options.inter_op_num_threads = 1
+            _default_session_options.intra_op_num_threads = 1
+            return _default_session_options
+
+        ort.capi._pybind_state.get_default_session_options = (
+            get_default_session_options_new
+        )
+
+        return ort.InferenceSession(
+            self.kwargs.regression_onnx_path,
+            providers=[
+                (
+                    "CUDAExecutionProvider",
+                    {
+                        "device_id": gpu_id,
+                    },
+                ),
+                "CPUExecutionProvider",
+            ],
+        )
+
     def build_model(self, test_dataloader: DataLoader | None = None) -> LightningModule:
         return DiffusionLightningModule(
             test_dataloader=test_dataloader,
