@@ -2,13 +2,12 @@ import lightning as L
 import onnxruntime as ort
 import torch
 import torch.nn as nn
-from einops import rearrange
 from torch.utils.data import DataLoader
 from tqdm import trange
 
 from ..diffusion_process import DDIMProcess, DDPMProcess
 from ..loss_fn import EuclideanLoss
-from ..model_utils import RunningAverage
+from ..model_utils import RunningAverage, restruct_dimension
 
 
 def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
@@ -91,9 +90,10 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             self.backbone_model = self.backbone_model_fn()
             self.regress_model = self.regression_model_fn(self.global_rank)
 
-            # freeze regression model
-            for param in self.regress_model.parameters():
-                param.requires_grad = False
+            # freeze parameters if the regression model comes from ckpt
+            if isinstance(self.regress_model, torch.nn.Module):
+                for param in self.regress_model.parameters():
+                    param.requires_grad = False
 
         def common_step(self, inp_data, target):
             """
@@ -115,8 +115,12 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             first_guess = self.inference_regression(
                 inp_data["upper_air"], inp_data["surface"], self.device
             )
-            target = self.restruct_dimension(target["upper_air"], target["surface"])
+            target = restruct_dimension(target["upper_air"], target["surface"])
             B = target.shape[0]
+
+            # only radar
+            if self.hparams.only_radar:
+                first_guess, target = first_guess[:, -1:], target[:, -1:]
 
             # DDPM
             x_0 = target - first_guess  # (B, C, H, W)
@@ -164,55 +168,23 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
         # ============== the following functions are not coherent w/ LightningModule ==============
         # ============== however they are critical for training DDPM models          ==============
 
-        def restruct_dimension(self, x_upper, x_surface, is_numpy=False, device=None):
-            """
-            Args:
-                x_upper (torch.Tensor): Tensor of shape (B, Lv, H, W, C1)
-                x_surface (torch.Tensor): Tensor of shape (B, 1, H, W, C2)
-                is_numpy (bool, optional): Whether the input is in numpy format
-                device (torch.device, optional): Device of the output tensor
-
-            Returns:
-                torch.Tensor: Tensor of shape (B, Lv*C1+C2, H, W)
-            """
-            if is_numpy and device is not None:
-                x_upper = torch.from_numpy(x_upper).to(device)
-                x_surface = torch.from_numpy(x_surface).to(device)
-            elif is_numpy and device is None:
-                raise ValueError("If `is_numpy` is True, `device` must be provided.")
-
-            x_upper = rearrange(x_upper, "b z h w c -> b (z c) h w")
-            x_surface = rearrange(x_surface, "b 1 h w c -> b c h w")
-            x = torch.cat([x_upper, x_surface], dim=1)
-            return x
-
-        def deconstruct(
-            self, x: torch.Tensor, upper_ch: int, surface_ch: int
-        ) -> tuple[torch.Tensor, torch.Tensor]:
-            """
-            Deconstructs a tensor `x` into two tensors `x_upper` and `x_surface`.
-
-            Args:
-                x (torch.Tensor): The input tensor of shape (B, Lv*C1+C2, H, W).
-                upper_ch (int): The number of channels in the upper layer (C1).
-                surface_ch (int): The number of channels in the surface layer (C2).
-
-            Returns:
-                tuple[torch.Tensor, torch.Tensor]: A tuple containing `x_upper` and `x_surface`.
-                    - `x_upper` (torch.Tensor): The upper layer tensor of shape (B, Lv, H, W, C1).
-                    - `x_surface` (torch.Tensor): The surface layer tensor of shape (B, 1, H, W, C2).
-            """
-            x_upper, x_surface = x[:, :-surface_ch], x[:, -surface_ch:]
-            x_upper = rearrange(x_upper, "b (z c) h w -> b z h w c", c=upper_ch)
-            x_surface = rearrange(x_surface, "b c h w -> b 1 h w c")
-            return x_upper, x_surface
-
         def denoising(
             self, cond: torch.Tensor, device: torch.device
         ) -> dict[int, torch.Tensor]:
             """
             Reverse process to get the image from noise. Log 6 images in a list.
+
+            Args:
+                cond (torch.Tensor): (B, C, H, W)
+                device (torch.device): The device to run the model
+
+            Returns:
+                ims (dict[int, torch.Tensor]): A dictionary of images
+                    {step: torch.Tensor (B, C, H, W)}
             """
+            if self.hparams.only_radar and cond.shape[1] != 1:
+                cond = cond[:, -1:]
+
             B, C, H, W = cond.shape
             x = torch.randn(B, C, H, W).to(device)  # Start with random noise
             ims = {self.hparams.timesteps: x}
@@ -283,7 +255,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             else:
                 raise NotImplementedError
 
-            first_guess = self.restruct_dimension(
+            first_guess = restruct_dimension(
                 first_guess_upper,
                 first_guess_surface,
                 is_numpy=isinstance(self.regress_model, ort.InferenceSession),

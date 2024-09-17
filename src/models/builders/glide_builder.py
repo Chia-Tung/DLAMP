@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Callable
 
-import onnxruntime as ort
 import torch
 import torch.nn as nn
 from lightning import LightningModule, Trainer
@@ -33,15 +32,16 @@ class GlideBuilder(BaseBuilder):
         super().__init__(**kwargs)
 
         self.time_stamp = convert_hydra_dir_to_timestamp(hydra_dir)
-        self.input_channels = len(data_list)
         self.data_list = data_list
+        self.input_channels = len(data_list)
+        self.only_radar = getattr(self.kwargs, "only_radar", False)
 
         self.info_log(f"Input Image Shape: {self.kwargs.image_shape}")
         self.info_log(f"Glide Unet Layers: {len(self.kwargs.ch_mults)}")
 
     def _backbone_model(self) -> nn.Module:
         return GlideUNet(
-            image_channels=self.input_channels,
+            image_channels=1 if self.only_radar else self.input_channels,
             hidden_dim=self.kwargs.hidden_dim,
             ch_mults=self.kwargs.ch_mults,
             is_attn=self.kwargs.is_attn,
@@ -78,6 +78,7 @@ class GlideBuilder(BaseBuilder):
             optim_config=self.kwargs.optim_config,
             warmup_epochs=self.kwargs.warmup_epochs,
             loss_factor=self.kwargs.loss_factor,
+            only_radar=self.only_radar,
         )
 
     def build_trainer(self, logger) -> Trainer:

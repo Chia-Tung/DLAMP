@@ -232,3 +232,48 @@ class RunningAverage:
     def add(self, val, n):
         self._N += n
         self._sum += val
+
+
+def restruct_dimension(x_upper, x_surface, is_numpy=False, device=None):
+    """
+    Args:
+        x_upper (torch.Tensor): Tensor of shape (B, Lv, H, W, C1)
+        x_surface (torch.Tensor): Tensor of shape (B, 1, H, W, C2)
+        is_numpy (bool, optional): Whether the input is in numpy format
+        device (torch.device, optional): Device of the output tensor
+
+    Returns:
+        torch.Tensor: Tensor of shape (B, Lv*C1+C2, H, W)
+    """
+    if is_numpy and device is not None:
+        x_upper = torch.from_numpy(x_upper).to(device)
+        x_surface = torch.from_numpy(x_surface).to(device)
+    elif is_numpy and device is None:
+        raise ValueError("If `is_numpy` is True, `device` must be provided.")
+
+    x_upper = rearrange(x_upper, "b z h w c -> b (z c) h w")
+    x_surface = rearrange(x_surface, "b 1 h w c -> b c h w")
+    x = torch.cat([x_upper, x_surface], dim=1)
+    return x
+
+
+def deconstruct(
+    x: torch.Tensor, upper_ch: int, surface_ch: int
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Deconstructs a tensor `x` into two tensors `x_upper` and `x_surface`.
+
+    Args:
+        x (torch.Tensor): The input tensor of shape (B, Lv*C1+C2, H, W).
+        upper_ch (int): The number of channels in the upper layer (C1).
+        surface_ch (int): The number of channels in the surface layer (C2).
+
+    Returns:
+        tuple[torch.Tensor, torch.Tensor]: A tuple containing `x_upper` and `x_surface`.
+            - `x_upper` (torch.Tensor): The upper layer tensor of shape (B, Lv, H, W, C1).
+            - `x_surface` (torch.Tensor): The surface layer tensor of shape (B, 1, H, W, C2).
+    """
+    x_upper, x_surface = x[:, :-surface_ch], x[:, -surface_ch:]
+    x_upper = rearrange(x_upper, "b (z c) h w -> b z h w c", c=upper_ch)
+    x_surface = rearrange(x_surface, "b c h w -> b 1 h w c")
+    return x_upper, x_surface

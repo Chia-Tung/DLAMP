@@ -49,7 +49,8 @@ class LogDiffusionPredSamplesCallback(LogPredictionSamplesCallback):
             )
             model_output_radar = {}
             for step, output in model_output.items():
-                _, output_surface = pl_module.deconstruct(output, upa_ch, sfc_ch)
+                # extract radar channel (B, 1, H, W, 1)
+                output_surface = output[:, -1:, :, :, None]
                 output_surface = output_surface.cpu().numpy()
                 output_surface = np.squeeze(destandardization(output_surface))
                 model_output_radar[f"step_{step}"] = output_surface
