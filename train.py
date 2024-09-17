@@ -2,6 +2,9 @@ import logging
 from pathlib import Path
 
 import hydra
+import torch
+
+torch.set_float32_matmul_precision("medium")
 from lightning.pytorch import seed_everything
 from omegaconf import DictConfig, OmegaConf
 
