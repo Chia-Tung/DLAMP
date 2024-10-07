@@ -32,7 +32,11 @@ def main(cfg: DictConfig) -> None:
 
     # model
     model_builder = get_builder(cfg.model.model_name)(
-        hydra_oup_dir, data_list, **cfg.model, **cfg.lightning
+        hydra_oup_dir,
+        data_list,
+        image_shape=data_manager.image_shape,
+        **cfg.model,
+        **cfg.lightning,
     )
     model = model_builder.build_model(data_manager.test_dataloader())
 

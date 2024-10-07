@@ -15,6 +15,7 @@ COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
 STANDARDIZATION_PATH = "./assets/standardization.json"
 DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"
+DATA_CONFIG_PATH = "./config/data/rwrf.yaml"
 
 # Radar color bar
 DBZ_LV = np.arange(0, 66, 1)

@@ -4,16 +4,37 @@ from typing import Callable, Sequence
 import numpy as np
 import torch
 from einops.layers.torch import Rearrange
+from scipy.interpolate import LinearNDInterpolator
 from torchvision.transforms.v2 import CenterCrop, Compose, Resize
 
-from .data_compose import DataCompose
+from .data_compose import DataCompose, DataType, Level
 from .file_util import gen_data
 
 
 class DataGenerator:
-    def __init__(self, data_shape: list[int], image_shape: list[int]):
-        self._data_shp = tuple(data_shape)
-        self._img_shp = tuple(image_shape)
+    def __init__(
+        self,
+        lat_range: list[float],
+        lon_range: list[float],
+        resolution: float,
+        data_shape: list[int] | None = None,
+        image_shape: list[int] | None = None,
+    ):
+        target_time = datetime(2022, 10, 1, 0)
+        self.data_lat = gen_data(target_time, DataCompose(DataType.Lat, Level.NoRule))
+        self.data_lon = gen_data(target_time, DataCompose(DataType.Lon, Level.NoRule))
+        self.points = np.column_stack((self.data_lat.ravel(), self.data_lon.ravel()))
+        self.target_lat, self.target_lon = self.setup_target_lat_lon(
+            lat_range, lon_range, resolution
+        )
+
+        # shape info
+        self._data_shp = data_shape if data_shape else self.data_lat.shape
+        self._img_shp = image_shape if image_shape else self.target_lat.shape
+
+        # preprocess
+        # WARNING: interpolation is too slow currently. Should be fixed in the future
+        # self.preprocess = self._interp
         self.preprocess = self._preprocess()
 
     def input_is_dict(fn: Callable) -> Callable:
@@ -70,18 +91,22 @@ class DataGenerator:
             torch.Tensor or np.ndarray: The processed data in shape (H, W).
         """
         np_data = gen_data(target_time, data_compose, dtype=np.float32)  # (H, W)
-        torch_data = torch.from_numpy(np_data[None]).type(torch.float32)  # (1, H, W)
-        processed_data: torch.Tensor = self.preprocess(torch_data)  # (H, W)
-        return processed_data.numpy() if to_numpy else processed_data
+
+        if isinstance(self.preprocess, Compose):
+            torch_data = torch.from_numpy(np_data[None]).type(
+                torch.float32
+            )  # (1, H, W)
+            processed_data: torch.Tensor = self.preprocess(torch_data)  # (H, W)
+            return processed_data.numpy() if to_numpy else processed_data
+        else:
+            return self.preprocess(np_data)
 
     def _preprocess(self) -> torch.Tensor:
         """
         Perform preprocessing on the data by applying a series of transformations:
-        1. Convert the data to torch.Tensor format in "channel first" order.
-        2. Center crop the image based on the specified dimensions.
-        3. Resize the image to the desired shape.
-        4. Convert the image to torch float32 dtype.
-        5. Rearrange the image dimensions from "c h w" to "h w".
+        1. Center crop the image based on the specified dimensions.
+        2. Resize the image to the desired shape.
+        3. Rearrange the image dimensions from "c h w" to "h w".
 
         Returns:
             torch.Tensor: Preprocessed data
@@ -112,3 +137,45 @@ class DataGenerator:
         assert (
             data.shape == self._data_shp
         ), f"{target_dt} data shape mismatch: {data.shape} != {self._data_shp}"
+
+    def _interp(self, data: np.ndarray) -> np.ndarray:
+        """
+        Interpolates the given 2D data to the target latitude and longitude using
+        scipy.interpolate.LinearNDInterpolator.
+
+        Args:
+            data (np.ndarray): The 2D data to be interpolated.
+
+        Returns:
+            np.ndarray: The interpolated data.
+        """
+        values = data.ravel()
+        interp = LinearNDInterpolator(self.points, values)
+        interpolated_data = interp(self.target_lat, self.target_lon)
+        return interpolated_data
+
+    def setup_target_lat_lon(
+        self,
+        lat_range: list[float],
+        lon_range: list[float],
+        resolution: float,
+        epsilon: float = 1e-5,
+    ):
+        """
+        Set up the target latitude and longitude arrays for interpolation.
+
+        Args:
+            lat_range (list[float]): The range of target latitudes.
+            lon_range (list[float]): The range of target longitudes.
+            resolution (float): The resolution of the target latitudes and longitudes.
+            epsilon (float, optional): A small value to be added to the upper limit of
+                the range to ensure that the upper limit is included. Defaults to 1e-5.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: A tuple of two 2D arrays: the first is the
+                target latitude array, and the second is the target longitude array.
+        """
+        lat = np.arange(lat_range[0], lat_range[1] + epsilon, resolution)
+        lon = np.arange(lon_range[0], lon_range[1] + epsilon, resolution)
+        lon_mesh, lat_mesh = np.meshgrid(lon, lat)
+        return lat_mesh, lon_mesh

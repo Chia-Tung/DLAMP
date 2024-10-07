@@ -36,7 +36,9 @@ class DataManager(L.LightningDataModule):
             kwargs["format"],
             kwargs["time_interval"],
         )
-        self.data_gnrt = DataGenerator(kwargs["data_shape"], kwargs["image_shape"])
+        self.data_gnrt = DataGenerator(
+            kwargs["image_lat"], kwargs["image_lon"], kwargs["image_res"]
+        )
 
         # flags
         self._already_called: dict[str, bool] = {}
@@ -179,3 +181,13 @@ class DataManager(L.LightningDataModule):
         Logs the given content with the class name prefixed.
         """
         log.info(f"[{self.__class__.__name__}] {content}")
+
+    @property
+    def image_shape(self):
+        """
+        The shape of the input image.
+
+        Returns:
+            tuple[int, int]: The shape of the input image in (H, W).
+        """
+        return self.data_gnrt._img_shp

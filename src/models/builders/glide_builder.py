@@ -53,7 +53,9 @@ class GlideBuilder(BaseBuilder):
             return init_ort_instance(onnx_path=self.kwargs.regression_onnx_path)
         elif self.kwargs.regressoin_ckpt_path:
             return load_pangu_model(
-                ckpt_path=self.kwargs.regressoin_ckpt_path, data_list=self.data_list
+                ckpt_path=self.kwargs.regressoin_ckpt_path,
+                data_list=self.data_list,
+                image_shape=self.kwargs.image_shape,
             )
         else:
             raise ValueError(
@@ -76,7 +78,7 @@ class GlideBuilder(BaseBuilder):
             beta_start=self.kwargs.beta_start,
             beta_end=self.kwargs.beta_end,
             optim_config=self.kwargs.optim_config,
-            lr_schedule=self.kwargs.lr_schedule,
+            warmup_epochs=self.kwargs.warmup_epochs,
             loss_factor=self.kwargs.loss_factor,
             only_radar=self.only_radar,
         )

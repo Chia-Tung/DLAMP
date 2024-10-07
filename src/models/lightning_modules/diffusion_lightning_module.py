@@ -59,16 +59,22 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             )
 
             # set learning rate schedule
-            lr_scheduler: torch.optim.lr_scheduler.LambdaLR = get_scheduler_with_warmup(
-                optimizer,
-                training_steps=int(self.trainer.estimated_stepping_batches),
-                schedule_type=self.hparams.lr_schedule.name,
-                **self.hparams.lr_schedule.args,
-            )
+            def lr_lambda(epoch):
+                if epoch <= self.hparams.warmup_epochs:
+                    lr_scale = 1
+                else:
+                    overflow = epoch - self.hparams.warmup_epochs
+                    lr_scale = 0.97**overflow
+                    if lr_scale < 1e-1:
+                        lr_scale = 1e-2
+                return lr_scale
 
+            lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                optimizer, lr_lambda=lr_lambda
+            )
             lr_scheduler_config = {
                 "scheduler": lr_scheduler,
-                "interval": "step",
+                "interval": "epoch",
                 "frequency": 1,
                 "name": "customized_lr",
             }

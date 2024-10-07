@@ -10,17 +10,12 @@ workers: 16
 # LightningModule
 regression_onnx_path: null
 regressoin_ckpt_path: "./checkpoints/Pangu_240918_013632-epoch=870-val_loss_epoch=0.1731.ckpt"
-image_shape: [224, 224]
 loss_factor: 10
 optim_config:
   name: AdamW
   args:
-    lr: 2e-4
-    weight_decay: 3e-6
-lr_schedule:
-  name: cosine
-  args:
-    warmup_steps: 1000
+    lr: 1e-5
+warmup_epochs: 3
 # lightning.Trainer
 num_gpus: null
 strategy: "auto"
