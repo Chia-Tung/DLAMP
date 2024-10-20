@@ -20,7 +20,7 @@ warmup_epochs: 3
 num_gpus: null
 strategy: "auto"
 fast_dev_run: False
-max_epochs: -1
+max_epochs: null
 max_steps: null
 min_steps: 1e5 # 100k
 limit_train_batches: null
