@@ -37,7 +37,10 @@ class DataManager(L.LightningDataModule):
             kwargs["time_interval"],
         )
         self.data_gnrt = DataGenerator(
-            kwargs["image_lat"], kwargs["image_lon"], kwargs["image_res"]
+            kwargs["image_lat"],
+            kwargs["image_lon"],
+            kwargs["image_res"],
+            image_shape=kwargs["image_shape"],
         )
 
         # flags
@@ -97,7 +100,9 @@ class DataManager(L.LightningDataModule):
             f"Testing Data Size: {len(self.dtm.test_time) // self.hparams.sampling_rate}"
         )
         self.info_log(
-            f"Data Shape: {self.hparams.data_shape}, Batch Size: {self.hparams.batch_size}"
+            f"Data Shape: {self.hparams.data_shape}, "
+            f"Image Shape: {self.image_shape}, "
+            f"Batch Size: {self.hparams.batch_size}"
         )
 
     def _setup(self, stage: str):

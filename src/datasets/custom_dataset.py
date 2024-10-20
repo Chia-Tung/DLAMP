@@ -112,7 +112,10 @@ class CustomDataset(Dataset):
         # Warning: LightningModule doesn't support defaultdict as input/output
         final = {}
         for key, value in output.items():
-            stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+            if key == "surface":
+                stack_data = np.concatenate(value, axis=2)[None]  # (1, h, w, c)
+            else:
+                stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
             final[key] = stack_data  # {'upper_air': (lv, h, w, c), ...}
 
         return final
