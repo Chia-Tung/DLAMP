@@ -95,8 +95,9 @@ def gen_path(target_time: datetime) -> Path:
     """
     return (
         Path(DATA_PATH)
-        / f"rwf_{target_time.strftime('%Y%m')}"
-        / f"{target_time.strftime('%Y%m%d%H%M')}0000"
+        / f"RWRF_{target_time.strftime('%Y-%m')}"
+        / f"{target_time.strftime('%Y-%m-%d_%H')}"
+        / f"wrfinput_d01_{target_time.strftime('%Y-%m-%d_%H')}_interp"
     )
 
 

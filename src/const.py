@@ -15,7 +15,7 @@ COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
 STANDARDIZATION_PATH = "./assets/standardization.json"
 DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"
-DATA_CONFIG_PATH = "./config/data/rwrf.yaml"
+DATA_CONFIG_PATH = "./config/data/rwrf_dense.yaml"
 
 # Radar color bar
 DBZ_LV = np.arange(0, 66, 1)
@@ -273,14 +273,18 @@ EVAL_CASES = {
         datetime(2021, 8, 8),  # South-western flow
     ],
     "three_days": [
-        # == harsh northward turning ==#
+        # == harsh northward turning == #
         # datetime(2022, 9, 3), # TC HINNAMNOR
         datetime(2022, 9, 12),  # TC MUIFA
         # datetime(2021, 7, 23), # TC IN-FA
-        # == north-eastern wind accompanied ==#
+        # == north-eastern wind accompanied == #
         datetime(2022, 10, 16),  # TC NESAT
         # datetime(2022, 10, 31),  # TC NALGAE
-        # == pass by northern Taiwan ==#
+        # == pass by northern Taiwan == #
         datetime(2020, 8, 3),  # TC HAGUPIT
+        # == pass by eastern Taiwan == #
+        datetime(2023, 7, 26),  # TC DOKSURI
+        # == landing == #
+        datetime(2023, 9, 3),  # TC HAIKUI
     ],
 }

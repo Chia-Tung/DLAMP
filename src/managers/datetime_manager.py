@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+import xarray as xr
 from tqdm import tqdm
 
 from ..const import BLACKLIST_PATH, EVAL_CASES
@@ -24,11 +25,13 @@ class DatetimeManager:
         end_time: str,
         format: str,
         interval: dict[str, int],
+        check_method: str,
     ):
         self.start_time = datetime.strptime(start_time, format)
         self.end_time = datetime.strptime(end_time, format)
         self.interval = timedelta(**interval)
         self.format = format
+        self.check_method = check_method
 
         # internal property
         self.time_list: list[datetime] = list()
@@ -70,7 +73,7 @@ class DatetimeManager:
         while current_time < self.end_time:
             next_time = current_time + self.interval
 
-            if not self.sanity_check(next_time, data_list):
+            if not self.sanity_check(next_time, data_list, self.check_method):
                 remove.extend([current_time, next_time])
                 current_time += 2 * self.interval
                 skip_current = False
@@ -78,7 +81,9 @@ class DatetimeManager:
                 continue
 
             # skip checking current time if `skip_current = True`
-            if not skip_current and not self.sanity_check(current_time, data_list):
+            if not skip_current and not self.sanity_check(
+                current_time, data_list, self.check_method
+            ):
                 remove.append(current_time)
                 current_time += self.interval
                 skip_current = True
@@ -219,26 +224,36 @@ class DatetimeManager:
         return self
 
     @staticmethod
-    def sanity_check(dt: datetime, data_list: list[DataCompose]) -> bool:
+    def sanity_check(
+        dt: datetime, data_list: list[DataCompose], check_method: str = "path"
+    ) -> bool:
         """
-        Check the sanity of the parent directory (../rwrf/rwf_201706/2017060100000000) regarding
-        dt by verifying the existence of all target data files under this parent directory.
-
         Parameters:
-            dt (datetime): The target parent directory to check
+            dt (datetime): The target parent directory to check.
             data_list (list[DataCompose]): A list of DataCompose objects representing the data.
+            check_method (str): "path" or "ncdump".
 
         Returns:
             bool: True if all target data files exist, False otherwise.
         """
-        data_filename_generator = (gen_path(dt, data) for data in data_list)
-        while True:
-            try:
-                data_filename = next(data_filename_generator)
-                if not data_filename.exists():
-                    return False
-            except StopIteration:
-                return True
+        match check_method:
+            case "path":
+                # check filename one by one
+                data_filename_generator = (gen_path(dt, data) for data in data_list)
+                while True:
+                    try:
+                        data_filename = next(data_filename_generator)
+                        if not data_filename.exists():
+                            return False
+                    except StopIteration:
+                        return True
+            case "ncdump":
+                data_filename = gen_path(dt)
+                ds = xr.open_dataset(data_filename)
+                all_vars = list(ds.data_vars)
+            case _:
+                log.error(f"Invalid check method: {check_method}")
+                raise ValueError(f"Invalid check method: {check_method}")
 
     def swap_eval_cases_from_train_valid(self) -> DatetimeManager:
         """

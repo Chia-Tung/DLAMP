@@ -35,6 +35,7 @@ class DataManager(L.LightningDataModule):
             kwargs["end_time"],
             kwargs["format"],
             kwargs["time_interval"],
+            kwargs["check_method"],
         )
         self.data_gnrt = DataGenerator(
             kwargs["image_lat"],

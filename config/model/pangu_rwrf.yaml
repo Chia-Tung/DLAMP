@@ -11,4 +11,4 @@ max_drop_path_ratio: 0.2
 heads: [6, 12]
 embed_dim: 192
 dropout_rate: 0
-window_size: [3, 4, 4]
+window_size: [4, 4, 4]
