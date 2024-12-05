@@ -2,12 +2,12 @@ import lightning as L
 import onnxruntime as ort
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import trange
 
 from ..diffusion_process import DDIMProcess, DDPMProcess
-from ..loss_fn import EuclideanLoss
-from ..model_utils import RunningAverage, restruct_dimension
+from ..model_utils import RunningAverage, get_scheduler_with_warmup, restruct_dimension
 
 
 def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
@@ -37,7 +37,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             self.backbone_model: nn.Module = None
             self.regression_model_fn = regression_model_fn
             self.regress_model: ort.InferenceSession | nn.Module = None
-            self.loss = EuclideanLoss()
+            self.loss = nn.MSELoss()
             self.loss_record = RunningAverage()
 
         def forward(self, noisy_img, time_step, condtion) -> torch.Tensor:
@@ -58,7 +58,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                 self.parameters(), **self.hparams.optim_config.args
             )
 
-            # set lr scheduler
+            # set learning rate schedule
             def lr_lambda(epoch):
                 if epoch <= self.hparams.warmup_epochs:
                     lr_scale = 1
@@ -66,7 +66,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                     overflow = epoch - self.hparams.warmup_epochs
                     lr_scale = 0.97**overflow
                     if lr_scale < 1e-1:
-                        lr_scale = 1e-1
+                        lr_scale = 1e-2
                 return lr_scale
 
             lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
@@ -78,6 +78,7 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
                 "frequency": 1,
                 "name": "customized_lr",
             }
+
             return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
 
         def configure_model(self):
@@ -121,6 +122,17 @@ def create_diffusion_module(diffusion_type: DDIMProcess | DDPMProcess):
             # only radar
             if self.hparams.only_radar:
                 first_guess, target = first_guess[:, -1:], target[:, -1:]
+
+            # teacher forcing
+            if torch.rand(1) < 0.5:
+                kernel_size = 7
+                padding = (kernel_size - 1) // 2
+                padded_target = F.pad(
+                    target, (padding, padding, padding, padding), mode="reflect"
+                )
+                first_guess = F.avg_pool2d(
+                    padded_target, kernel_size=kernel_size, stride=1
+                )
 
             # DDPM
             x_0 = target - first_guess  # (B, C, H, W)

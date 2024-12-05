@@ -31,4 +31,10 @@ class Level(StrEnum):
     NoRule = "X00"
 
     def is_surface(self) -> bool:
-        return self in [self.Surface, self.SeaSurface, self.NoRule]
+        return self in [
+            self.Surface,
+            self.SeaSurface,
+            self.NoRule,
+            self.Meter2,
+            self.Meter10,
+        ]

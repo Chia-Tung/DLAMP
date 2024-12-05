@@ -105,7 +105,7 @@ def init_ort_instance(gpu_id: int, onnx_path: str) -> ort.InferenceSession:
 
 
 def load_pangu_model(
-    ckpt_path: str, data_list: list[DataCompose]
+    ckpt_path: str, data_list: list[DataCompose], image_shape: list[int, int]
 ) -> Callable[[torch.device], nn.Module]:
     with open("./config/model/pangu_rwrf.yaml") as stream:
         cfg_model = yaml.safe_load(stream)
@@ -113,7 +113,9 @@ def load_pangu_model(
         cfg_lightning = yaml.safe_load(stream)
 
     # build model
-    pangu_builder = PanguBuilder("dummy", data_list, **cfg_model, **cfg_lightning)
+    pangu_builder = PanguBuilder(
+        "dummy", data_list, image_shape=image_shape, **cfg_model, **cfg_lightning
+    )
     model = pangu_builder._backbone_model()
 
     # load weights from checkpoint

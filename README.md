@@ -19,7 +19,7 @@ conda activate [env name]
 ```
 install NVIDIA modulus package
 ```
-git clone git@github.com:NVIDIA/modulus.git && cd modulus
+git clone https://github.com/NVIDIA/modulus.git && cd modulus
 make install
 ```
 other packages

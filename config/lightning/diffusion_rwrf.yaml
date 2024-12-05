@@ -9,14 +9,13 @@ batch_size: 1
 workers: 16
 # LightningModule
 regression_onnx_path: null
-regressoin_ckpt_path: "./checkpoints/Pangu_240831_141548-epoch=423-val_loss_epoch=0.1560.ckpt"
-image_shape: [224, 224]
-loss_factor: 1
+regressoin_ckpt_path: "./checkpoints/Pangu_240918_013632-epoch=870-val_loss_epoch=0.1731.ckpt"
+loss_factor: 10
 optim_config:
   name: AdamW
   args:
-    lr: 1e-4
-warmup_epochs: 20
+    lr: 1e-5
+warmup_epochs: 3
 # lightning.Trainer
 num_gpus: null
 strategy: "auto"

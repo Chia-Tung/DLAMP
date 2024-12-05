@@ -22,7 +22,7 @@ class CustomDataset(Dataset):
         sampling_rate: int,
         init_time_list: list[datetime],
         data_list: list[DataCompose],
-        is_valid: bool,
+        is_train_or_valid: bool,
     ):
         super().__init__()
         self._ilen = inp_len
@@ -32,7 +32,7 @@ class CustomDataset(Dataset):
         self._sr = sampling_rate
         self._init_time_list = init_time_list
         self._data_list = data_list
-        self._is_valid = is_valid
+        self._is_train_or_valid = is_train_or_valid
 
         if Path(STANDARDIZATION_PATH).exists():
             with open(STANDARDIZATION_PATH, "r") as f:
@@ -47,7 +47,7 @@ class CustomDataset(Dataset):
         """
         return (
             len(self._init_time_list) // self._sr
-            if self._is_valid
+            if self._is_train_or_valid
             else len(self._init_time_list)
         )
 
@@ -61,7 +61,7 @@ class CustomDataset(Dataset):
         Returns:
             tuple: A tuple containing the input and output data.
         """
-        if self._is_valid:
+        if self._is_train_or_valid:
             index *= self._sr
         input_time = self._init_time_list[index]
         input = self._get_variables_from_dt(input_time)
@@ -112,7 +112,10 @@ class CustomDataset(Dataset):
         # Warning: LightningModule doesn't support defaultdict as input/output
         final = {}
         for key, value in output.items():
-            stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+            if key == "surface":
+                stack_data = np.concatenate(value, axis=2)[None]  # (1, h, w, c)
+            else:
+                stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
             final[key] = stack_data  # {'upper_air': (lv, h, w, c), ...}
 
         return final
@@ -131,7 +134,7 @@ class CustomDataset(Dataset):
             int: The index of the datetime object in the `_init_time_list` attribute.
         """
         idx = self._init_time_list.index(dt)
-        return idx // self._sr if self._is_valid else idx
+        return idx // self._sr if self._is_train_or_valid else idx
 
     def average_pooling(
         self, data: np.ndarray, kernel_size: int = 9, stride: int = 1

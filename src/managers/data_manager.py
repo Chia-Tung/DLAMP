@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 import lightning as L
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader
 
 from ..datasets import CustomDataset
 from ..utils import DataCompose, DataGenerator
@@ -28,7 +28,6 @@ class DataManager(L.LightningDataModule):
         self._valid_dataset = None
         self._test_dataset = None
         self._predict_dataset = None
-        self._train_sampler = None
 
         # assistants
         self.dtm = DatetimeManager(
@@ -37,7 +36,12 @@ class DataManager(L.LightningDataModule):
             kwargs["format"],
             kwargs["time_interval"],
         )
-        self.data_gnrt = DataGenerator(kwargs["data_shape"], kwargs["image_shape"])
+        self.data_gnrt = DataGenerator(
+            kwargs["image_lat"],
+            kwargs["image_lon"],
+            kwargs["image_res"],
+            image_shape=kwargs["image_shape"],
+        )
 
         # flags
         self._already_called: dict[str, bool] = {}
@@ -74,11 +78,6 @@ class DataManager(L.LightningDataModule):
         match stage:
             case "fit":
                 self._train_dataset = self._setup("train")
-                self._train_sampler = RandomSampler(
-                    self._train_dataset,
-                    num_samples=len(self._train_dataset) // self.hparams.sampling_rate,
-                    replacement=False,
-                )
                 self._valid_dataset = self._setup("valid")
             case "validate":
                 self._valid_dataset = self._setup("valid")
@@ -101,7 +100,9 @@ class DataManager(L.LightningDataModule):
             f"Testing Data Size: {len(self.dtm.test_time) // self.hparams.sampling_rate}"
         )
         self.info_log(
-            f"Data Shape: {self.hparams.data_shape}, Batch Size: {self.hparams.batch_size}"
+            f"Data Shape: {self.hparams.data_shape}, "
+            f"Image Shape: {self.image_shape}, "
+            f"Batch Size: {self.hparams.batch_size}"
         )
 
     def _setup(self, stage: str):
@@ -110,6 +111,7 @@ class DataManager(L.LightningDataModule):
 
         Parameters:
             stage (str): The stage for which the data needs to be set up.
+                Possible values are "train", "valid", "test", or "predict".
 
         Returns:
             CustomDataset: The subclass of `torch.utils.data.Dataset`.
@@ -128,7 +130,7 @@ class DataManager(L.LightningDataModule):
             self.hparams.sampling_rate,
             ordered_time,
             self.data_list,
-            is_valid=stage == "valid",
+            is_train_or_valid=stage in ["train", "valid"],
         )
 
     def train_dataloader(self):
@@ -137,10 +139,10 @@ class DataManager(L.LightningDataModule):
         """
         return DataLoader(
             dataset=self._train_dataset,
-            sampler=self._train_sampler,
+            shuffle=True,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.workers,
-            drop_last=True,
+            drop_last=False,
         )
 
     def val_dataloader(self):
@@ -184,3 +186,13 @@ class DataManager(L.LightningDataModule):
         Logs the given content with the class name prefixed.
         """
         log.info(f"[{self.__class__.__name__}] {content}")
+
+    @property
+    def image_shape(self):
+        """
+        The shape of the input image.
+
+        Returns:
+            tuple[int, int]: The shape of the input image in (H, W).
+        """
+        return self.data_gnrt._img_shp
