@@ -37,61 +37,55 @@ class DataGenerator:
         # self.preprocess = self._interp
         self.preprocess = self._preprocess()
 
-    def input_is_dict(fn: Callable) -> Callable:
+    def yield_data_hook(fn: Callable) -> Callable:
         def wrapper(
             self,
             target_time: datetime,
-            data_compose: DataCompose | dict[str, list[str]],
+            data_compose: DataCompose | list[DataCompose],
             to_numpy: bool = True,
-        ) -> Sequence | list[Sequence]:
+        ) -> Sequence | dict[str, Sequence]:
             """
-            A wrapper that allows the function to accept either a DataCompose object or a dictionary as input.
+            A wrapper function that handles data generation and preprocessing. The output can be either
+            a single sequence data or a dictionary of sequences depending on the type of input data_compose.
 
             Parameters:
-                target_time (datetime): The target time for data processing.
-                data_compose (DataCompose | dict[str, list[str]]): The data compose object or a dictionary.
-                    The dictionary should have the following structure:
-                        {
-                            "GeoHeight": ["Hpa200", "Hpa500", "Hpa700", "Hpa850", "Hpa925"],
-                            "T": ["Hpa200", "Hpa500", "Hpa700", "Hpa850", "Hpa925"],
-                            ...
-                        }
-                to_numpy (bool, optional): Flag to determine if the output should be in numpy format.
-                    Defaults to True.
+                target_time (datetime): The target timestamp for data generation.
+                data_compose (DataCompose | list[DataCompose]): Single or multiple DataCompose objects
+                    specifying the type and level of data to generate.
+                to_numpy (bool, optional): Whether to return the processed data as numpy array or torch
+                    Tensor. Defaults to True.
+
+            Returns:
+                Sequence | dict[str, Sequence]: Processed data either as a single sequence or
+                dictionary of sequences if multiple DataCompose objects are provided.
             """
-            if isinstance(data_compose, DataCompose):
-                return fn(self, target_time, data_compose, to_numpy)
-            elif isinstance(data_compose, dict):
-                data_list: list[DataCompose] = DataCompose.from_config(data_compose)
-                output_data = []
-                for element in data_list:
-                    yield_data = fn(self, target_time, element, to_numpy)
-                    output_data.append(yield_data)
-                return output_data
-            else:
-                raise ValueError(
-                    f"Unsupported data type: {type(data_compose)}, expected DataCompose or dict[str, str]."
-                )
+            data: np.ndarray | dict[str, np.ndarray] = gen_data(
+                target_time, data_compose, dtype=np.float32
+            )  # (H, W)
+
+            if isinstance(data, np.ndarray):
+                return fn(self, data, to_numpy)
+            elif isinstance(data, dict):
+                for key, np_data in data.items():
+                    data[key] = fn(self, np_data, to_numpy)
+                return data
 
         return wrapper
 
-    @input_is_dict
+    @yield_data_hook
     def yield_data(
-        self, target_time: datetime, data_compose: DataCompose, to_numpy: bool = True
+        self, np_data: np.ndarray, to_numpy: bool = True
     ) -> torch.Tensor | np.ndarray:
         """
-        Generate a tensor or numpy array of processed data based on the target time and data compose.
+        Generate a tensor or numpy array of processed data based on the provided numpy array.
 
         Parameters:
-            target_time (datetime): The target time for generating the data.
-            data_compose (DataCompose): The data compose object.
+            np_data (np.ndarray): The numpy array containing the data to be processed.
             to_numpy (bool, optional): Whether to return the data as a numpy array. Defaults to True.
 
         Returns:
             torch.Tensor or np.ndarray: The processed data in shape (H, W).
         """
-        np_data = gen_data(target_time, data_compose, dtype=np.float32)  # (H, W)
-
         if isinstance(self.preprocess, Compose):
             torch_data = torch.from_numpy(np_data[None]).type(
                 torch.float32

@@ -7,10 +7,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
-import xarray as xr
 from tqdm import tqdm
 
-from ..const import BLACKLIST_PATH, EVAL_CASES
+from ..const import BLACKLIST_PATH, DATA_SOURCE, EVAL_CASES
 from ..utils import DataCompose, TimeUtil, gen_path
 
 log = logging.getLogger(__name__)
@@ -25,13 +24,11 @@ class DatetimeManager:
         end_time: str,
         format: str,
         interval: dict[str, int],
-        check_method: str,
     ):
         self.start_time = datetime.strptime(start_time, format)
         self.end_time = datetime.strptime(end_time, format)
         self.interval = timedelta(**interval)
         self.format = format
-        self.check_method = check_method
 
         # internal property
         self.time_list: list[datetime] = list()
@@ -73,7 +70,7 @@ class DatetimeManager:
         while current_time < self.end_time:
             next_time = current_time + self.interval
 
-            if not self.sanity_check(next_time, data_list, self.check_method):
+            if not self.sanity_check(next_time, data_list):
                 remove.extend([current_time, next_time])
                 current_time += 2 * self.interval
                 skip_current = False
@@ -81,9 +78,7 @@ class DatetimeManager:
                 continue
 
             # skip checking current time if `skip_current = True`
-            if not skip_current and not self.sanity_check(
-                current_time, data_list, self.check_method
-            ):
+            if not skip_current and not self.sanity_check(current_time, data_list):
                 remove.append(current_time)
                 current_time += self.interval
                 skip_current = True
@@ -225,20 +220,22 @@ class DatetimeManager:
 
     @staticmethod
     def sanity_check(
-        dt: datetime, data_list: list[DataCompose], check_method: str = "path"
+        dt: datetime, data_list: list[DataCompose], data_source: str = DATA_SOURCE
     ) -> bool:
         """
         Parameters:
             dt (datetime): The target parent directory to check.
             data_list (list[DataCompose]): A list of DataCompose objects representing the data.
-            check_method (str): "path" or "ncdump".
+            data_source (str): The way checking the validity depends on different data sources.
+                e.g.
+                    "NEO171_RWRF" -> data stored on neo171 server, check files one by one
+                    "CWA_RWRF" -> data stored on CWA HPC, check dataset by ncdump
 
         Returns:
             bool: True if all target data files exist, False otherwise.
         """
-        match check_method:
-            case "path":
-                # check filename one by one
+        match data_source:
+            case "NEO171_RWRF":
                 data_filename_generator = (gen_path(dt, data) for data in data_list)
                 while True:
                     try:
@@ -247,13 +244,14 @@ class DatetimeManager:
                             return False
                     except StopIteration:
                         return True
-            case "ncdump":
+            case "CWA_RWRF":
+                # since CWA prepared the data for us, we believe all variables are consistent
+                # in every netCDF file. Thus, we only check the file existence here.
                 data_filename = gen_path(dt)
-                ds = xr.open_dataset(data_filename)
-                all_vars = list(ds.data_vars)
+                return True if data_filename.exists() else False
             case _:
-                log.error(f"Invalid check method: {check_method}")
-                raise ValueError(f"Invalid check method: {check_method}")
+                log.error(f"Invalid data_source: {data_source}")
+                raise ValueError(f"Invalid data_source: {data_source}")
 
     def swap_eval_cases_from_train_valid(self) -> DatetimeManager:
         """

@@ -91,12 +91,13 @@ class CustomDataset(Dataset):
         pre_output = defaultdict(list)
         # via traversing data_list, the levels/vars are in the the same order as the
         # order in `config/data/data_config.yaml`
-        for data_compose in self._data_list:
-            data = self._data_gnrt.yield_data(dt, data_compose, to_numpy=True)
-            if self.stat_dict:
-                stat = self.stat_dict[str(data_compose)]
+        data_dict = self._data_gnrt.yield_data(dt, self._data_list)
+        for var_level_str, data in data_dict.items():
+            if var_level_str in self.stat_dict:
+                stat = self.stat_dict[var_level_str]
                 data = (data - stat["mean"]) / stat["std"]
-            pre_output[data_compose.level].append(data)
+            _, level = DataCompose.retrive_var_level_from_string(var_level_str)
+            pre_output[level].append(data)
 
         # concatenate by variable, group by level
         output = defaultdict(list)

@@ -4,16 +4,17 @@ import matplotlib as mpl
 import numpy as np
 
 # Constant
+DATA_SOURCE = "CWA_RWRF"
 VAR_SUFFIX = "WE01H0202500"
 
 # Path
-BLACKLIST_PATH = "./assets/blacklist.txt"
+BLACKLIST_PATH = "./assets/blacklist_complete_rwrf.txt"
 CHECKPOINT_DIR = "./checkpoints/"
 LAND_SEA_MASK_PATH = "./assets/constant_masks/land_sea_mask_2km.npy"
 TOPOGRAPHY_MASK_PATH = "./assets/constant_masks/topography_mask_2km.npy"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
-STANDARDIZATION_PATH = "./assets/standardization.json"
-DATA_PATH = "/work/dong1128/rwrf/"
+STANDARDIZATION_PATH = "./assets/standardization_complete.json"
+DATA_PATH = "/work/dong1128/rwrf_data/"
 FIGURE_PATH = "./gallery/"
 DATA_CONFIG_PATH = "./config/data/rwrf_dense.yaml"
 

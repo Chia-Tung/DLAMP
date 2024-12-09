@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import lightning as L
 import numpy as np
@@ -10,7 +10,7 @@ from visual import VizRadar
 
 from ...datasets import CustomDataset
 from ...standardization import destandardization
-from ...utils import DataGenerator
+from ...utils import DataCompose, DataGenerator
 
 
 class LogPredictionSamplesCallback(Callback):
@@ -34,9 +34,9 @@ class LogPredictionSamplesCallback(Callback):
         # load axis
         custom_dataset: CustomDataset = pl_module.test_dataloader().dataset
         data_gnrt: DataGenerator = custom_dataset._data_gnrt
-        self.data_lat, self.data_lon = data_gnrt.yield_data(
-            datetime(2022, 10, 1, 0), {"Lat": ["NoRule"], "Lon": ["NoRule"]}
-        )
+        dc_lat, dc_lon = DataCompose.from_config({"Lat": ["NoRule"], "Lon": ["NoRule"]})
+        self.data_lat = data_gnrt.yield_data(datetime(2022, 10, 1, 0), dc_lat)
+        self.data_lon = data_gnrt.yield_data(datetime(2022, 10, 1, 0), dc_lon)
 
         # choose cases from `src.const.EVAL_CASES`
         cases = [datetime(2022, 9, 12)]  # datetime(2022, 10, 16)
