@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
-from ..const import BLACKLIST_PATH, EVAL_CASES
+from ..const import BLACKLIST_PATH, DATA_SOURCE, EVAL_CASES
 from ..utils import DataCompose, TimeUtil, gen_path
 
 log = logging.getLogger(__name__)
@@ -188,30 +188,26 @@ class DatetimeManager:
         Returns:
             DatetimeManager: The updated DatetimeManager object with the evaluation cases removed.
         """
-
-        def get_datetime_list(dt_list, fn) -> list[datetime]:
-            """
-            Get a list of datetimes by applying a function to each element of a list of datetimes.
-
-            Parameters:
-                dt_list (list[datetime]): A list of datetimes.
-                fn (Callable[[int, int, int], datetime]): A function that takes year, month, and
-                    day as input and returns a datetime.
-
-            Returns:
-                list[datetime]: A list of datetimes.
-            """
-            ret = []
-            for dt in dt_list:
-                ret.extend(fn(dt.year, dt.month, dt.day, interval=self.interval))
-            return ret
+        days_map = {
+            "one_day": 1,
+            "three_days": 3,
+            "five_days": 5,
+            "seven_days": 7,
+        }
 
         s = time.time()
         for key, value in EVAL_CASES.items():
-            if key == "one_day":
-                self.eval_cases |= set(get_datetime_list(value, TimeUtil.entire_period))
-            elif key == "three_days":
-                self.eval_cases |= set(get_datetime_list(value, TimeUtil.three_days))
+            n_days = days_map.get(key)
+            
+            if n_days is None:
+                raise RuntimeError(f"Invalid days: {key}")
+
+            for dt in value:
+                self.eval_cases |= set(
+                    TimeUtil.N_days_time_list(
+                        dt.year, dt.month, dt.day, self.interval, n_days
+                    )
+                )
 
         self.eval_cases &= set(self.time_list)
         log.debug(f"{self.BC} Built eval case list in {time.time() - s:.5f} sec.")
@@ -219,26 +215,39 @@ class DatetimeManager:
         return self
 
     @staticmethod
-    def sanity_check(dt: datetime, data_list: list[DataCompose]) -> bool:
+    def sanity_check(
+        dt: datetime, data_list: list[DataCompose], data_source: str = DATA_SOURCE
+    ) -> bool:
         """
-        Check the sanity of the parent directory (../rwrf/rwf_201706/2017060100000000) regarding
-        dt by verifying the existence of all target data files under this parent directory.
-
         Parameters:
-            dt (datetime): The target parent directory to check
+            dt (datetime): The target parent directory to check.
             data_list (list[DataCompose]): A list of DataCompose objects representing the data.
+            data_source (str): The way checking the validity depends on different data sources.
+                e.g.
+                    "NEO171_RWRF" -> data stored on neo171 server, check files one by one
+                    "CWA_RWRF" -> data stored on CWA HPC, check dataset by ncdump
 
         Returns:
             bool: True if all target data files exist, False otherwise.
         """
-        data_filename_generator = (gen_path(dt, data) for data in data_list)
-        while True:
-            try:
-                data_filename = next(data_filename_generator)
-                if not data_filename.exists():
-                    return False
-            except StopIteration:
-                return True
+        match data_source:
+            case "NEO171_RWRF":
+                data_filename_generator = (gen_path(dt, data) for data in data_list)
+                while True:
+                    try:
+                        data_filename = next(data_filename_generator)
+                        if not data_filename.exists():
+                            return False
+                    except StopIteration:
+                        return True
+            case "CWA_RWRF":
+                # since CWA prepared the data for us, we believe all variables are consistent
+                # in every netCDF file. Thus, we only check the file existence here.
+                data_filename = gen_path(dt)
+                return True if data_filename.exists() else False
+            case _:
+                log.error(f"Invalid data_source: {data_source}")
+                raise ValueError(f"Invalid data_source: {data_source}")
 
     def swap_eval_cases_from_train_valid(self) -> DatetimeManager:
         """

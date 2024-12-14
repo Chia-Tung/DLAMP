@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 from typing import Callable
 
 from pydantic.dataclasses import dataclass
@@ -29,11 +29,39 @@ class DataCompose:
         """
         if self.var_name in [DataType.Radar, DataType.Lat, DataType.Lon]:
             self.level = Level.NoRule
-        self.sub_dir_name = f"{self.level}{self.var_name}{VAR_SUFFIX}"
+        if self.var_name in [DataType.Td, DataType.RH]:
+            self.level = Level.Meter2
+
+        self.basename = f"{self.level.code}{self.var_name.code}{VAR_SUFFIX}"
+        self.combined_key = self.get_combined_key()
         self.is_radar = self.var_name == DataType.Radar
 
     def __str__(self) -> str:
-        return f"{self.var_name.name}@{self.level.name}"
+        return f"{self.var_name.value}@{self.level.value}"
+
+    @staticmethod
+    def retrive_var_level_from_string(sentence: str) -> tuple[DataType, Level]:
+        var_str = sentence.split("@")[0]
+        level_str = sentence.split("@")[1]
+        return DataType(var_str), Level(level_str)
+
+    def get_combined_key(self):
+        """
+        Combine the NetCDF key of the variable and level into a single string.
+        """
+        if self.level not in [Level.Meter2, Level.Meter10, Level.Meter100]:
+            return self.var_name.nc_key
+
+        if self.var_name in [DataType.Td, DataType.RH]:
+            return f"{self.var_name.nc_key}{self.level.nc_key}"
+
+        if self.var_name in [DataType.U, DataType.V]:
+            prefix = self.var_name.nc_key.split("_")[0]
+            return f"{prefix}{self.level.nc_key}"
+
+        if self.var_name in [DataType.T, DataType.Qv]:
+            prefix = self.var_name.name[0]
+            return f"{prefix}{self.level.nc_key}"
 
     @classmethod
     def from_config(cls, config: dict[str, list[str]]) -> list[DataCompose]:
@@ -63,7 +91,7 @@ class DataCompose:
             only_upper: bool = False,
             only_surface: bool = False,
             to_str: bool = False,
-        ) -> list[StrEnum] | list[str]:
+        ) -> list[Enum] | list[str]:
             """
             A wrapper function that takes a list of `DataCompose` objects, along with optional
             boolean flags `only_upper` and `only_surface`, and returns a list of `StrEnum` or `str` values.

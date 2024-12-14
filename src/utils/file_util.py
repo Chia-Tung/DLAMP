@@ -1,31 +1,88 @@
 import warnings
 from datetime import datetime
-from functools import wraps
 from pathlib import Path
 
 import numpy as np
+import xarray as xr
 
-from ..const import DATA_PATH
-from .data_compose import DataCompose
+from ..const import DATA_PATH, DATA_SOURCE
+from .data_compose import DataCompose, DataType
 
 
 def gen_data(
-    target_time: datetime, data_compose: DataCompose, dtype: np.dtype | None = None
-) -> np.ndarray:
+    target_time: datetime,
+    data_compose: DataCompose | list[DataCompose],
+    dtype: np.dtype | None = None,
+) -> np.ndarray | dict[str, np.ndarray]:
     """
     Generate numpy array data for a given target time and data composition.
 
     Args:
         target_time (datetime): The target time for which the data is generated.
-        data_compose (DataCompose): The data composition object.
+        data_compose (DataCompose | list[DataCompose]): The data composition object or a list
+            of data composition objects.
         dtype (np.dtype | None, optional): The data type of the generated data. Defaults to None.
 
     Returns:
         The generated data.
 
     """
-    file_dir = gen_path(target_time, data_compose)
-    return read_cwa_npfile(file_dir, data_compose.is_radar, dtype)
+    match DATA_SOURCE:
+        case "NEO171_RWRF":
+            if isinstance(data_compose, DataCompose):
+                file_name = gen_path(target_time, data_compose)
+                return read_cwa_npfile(file_name, data_compose.is_radar, dtype)
+            elif isinstance(data_compose, list):
+                ret = {}
+                for ele in data_compose:
+                    file_name = gen_path(target_time, ele)
+                    ret[str(ele)] = read_cwa_npfile(file_name, ele.is_radar, dtype)
+                return ret
+        case "CWA_RWRF":
+            file_name = gen_path(target_time)
+            return read_cwa_ncfile(file_name, data_compose, dtype)
+        case _:
+            raise ValueError(f"Unknown data source: {DATA_SOURCE}")
+
+
+def read_cwa_ncfile(
+    file_path: Path,
+    data_compose: DataCompose | list[DataCompose],
+    dtype: np.dtype | None = None,
+) -> np.ndarray | dict[str, np.ndarray]:
+    """
+    Read data from a NetCDF file based on the provided data composition.
+
+    Args:
+        file_path (Path): Path to the NetCDF file.
+        data_compose (DataCompose | list[DataCompose]): A single DataCompose object or a list of
+            DataCompose objects specifying what data to extract.
+        dtype (np.dtype | None, optional): The numpy dtype to cast the data to. If None, keeps original dtype.
+            Defaults to None.
+
+    Returns:
+        np.ndarray | dict[str, np.ndarray]: If data_compose is a single DataCompose object, returns a numpy array
+            containing the requested data. If data_compose is a list, returns a dictionary mapping DataCompose
+            string representations to their corresponding numpy arrays.
+    """
+    dataset = xr.open_dataset(str(file_path))
+    pres_lvs = dataset[DataType.P.nc_key].values
+
+    def fn(dc: DataCompose):
+        data = dataset[dc.combined_key].values.squeeze()  # (Z, H, W)
+        data = data.astype(dtype) if dtype is not None else data
+        if not dc.level.is_surface():
+            (idx,) = np.where(pres_lvs == float(dc.level.nc_key))
+            data = data[idx[0]]
+        return data  # (H, W)
+
+    if isinstance(data_compose, DataCompose):
+        return fn(data_compose)
+    elif isinstance(data_compose, list):
+        ret = {}
+        for ele in data_compose:
+            ret[str(ele)] = fn(ele)
+        return ret
 
 
 def read_cwa_npfile(
@@ -61,43 +118,43 @@ def read_cwa_npfile(
     return data
 
 
-def gen_path_hook(func) -> Path:
+def gen_path(
+    target_time: datetime,
+    data_compose: None | DataCompose = None,
+    data_source: str = DATA_SOURCE,
+) -> Path:
     """
-    A decorator function that wraps the given `func` and returns a modified function
-    providing the full sub-directory path based on the given data composition.
-
-    Parameters:
-        func (Callable): The function to be wrapped.
-
-    Returns:
-        Callable: The modified function.
-    """
-
-    @wraps(func)
-    def wrap(target_time: datetime, data_compose: None | DataCompose = None):
-        if data_compose is None:
-            return func(target_time)
-        return func(target_time) / data_compose.sub_dir_name
-
-    return wrap
-
-
-@gen_path_hook
-def gen_path(target_time: datetime) -> Path:
-    """
-    A function that generates a path based on the given target time.
+    A function that generates a path based on the given target time and data compose.
 
     Parameters:
         target_time (datetime): The target time for generating the path.
+        data_compose (None | DataCompose): The data composition object.
+        data_source (str): The way generating the path depends on different data sources.
+            e.g.
+                "NEO171_RWRF" -> data stored on neo171 server
+                "CWA_RWRF" -> data stored on CWA HPC
 
     Returns:
         Path: The generated path.
     """
-    return (
-        Path(DATA_PATH)
-        / f"rwf_{target_time.strftime('%Y%m')}"
-        / f"{target_time.strftime('%Y%m%d%H%M')}0000"
-    )
+    match data_source:
+        case "NEO171_RWRF":
+            assert data_compose is not None, "DataCompose is required for NEO171_RWRF"
+            return (
+                Path(DATA_PATH)
+                / f"rwf_{target_time.strftime('%Y%m')}"
+                / f"{target_time.strftime('%Y%m%d%H%M')}0000"
+                / data_compose.basename
+            )
+        case "CWA_RWRF":
+            return (
+                Path(DATA_PATH)
+                / f"RWRF_{target_time.strftime('%Y-%m')}"
+                / f"{target_time.strftime('%Y-%m-%d_%H')}"
+                / f"wrfout_d01_{target_time.strftime('%Y-%m-%d_%H')}_interp"
+            )
+        case _:
+            raise ValueError(f"Invalid data source: {data_source}")
 
 
 def convert_hydra_dir_to_timestamp(hydra_dir: Path | str) -> str:

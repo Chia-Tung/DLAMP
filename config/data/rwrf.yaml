@@ -9,7 +9,7 @@ image_lat: [20.4, 27.1] # not used
 image_lon: [117.52, 124.22] # not used
 image_res: 0.02 # not used
 train_data:
-  GeoHeight:
+  Z:
     - Hpa200
     - Hpa500
     - Hpa700
