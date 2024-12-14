@@ -1,5 +1,5 @@
-start_time: "2021-01-04 00:00"
-end_time: "2021-01-05 00:00"
+start_time: "2020-07-01 00:00"
+end_time: "2024-08-31 23:59"
 format: "%Y-%m-%d %H:%M"
 time_interval: 
   hours: 1
@@ -200,12 +200,4 @@ train_data:
   PSFC:
     - Surface
   PW:
-    - Surface
-  PBLH:
-    - Surface
-  RAINNC:
-    - Surface
-  SWDOWN:
-    - Surface
-  OLR:
     - Surface

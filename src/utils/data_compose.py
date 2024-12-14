@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 from typing import Callable
 
 from pydantic.dataclasses import dataclass
@@ -91,7 +91,7 @@ class DataCompose:
             only_upper: bool = False,
             only_surface: bool = False,
             to_str: bool = False,
-        ) -> list[StrEnum] | list[str]:
+        ) -> list[Enum] | list[str]:
             """
             A wrapper function that takes a list of `DataCompose` objects, along with optional
             boolean flags `only_upper` and `only_surface`, and returns a list of `StrEnum` or `str` values.

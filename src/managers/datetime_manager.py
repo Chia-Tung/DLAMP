@@ -188,30 +188,26 @@ class DatetimeManager:
         Returns:
             DatetimeManager: The updated DatetimeManager object with the evaluation cases removed.
         """
-
-        def get_datetime_list(dt_list, fn) -> list[datetime]:
-            """
-            Get a list of datetimes by applying a function to each element of a list of datetimes.
-
-            Parameters:
-                dt_list (list[datetime]): A list of datetimes.
-                fn (Callable[[int, int, int], datetime]): A function that takes year, month, and
-                    day as input and returns a datetime.
-
-            Returns:
-                list[datetime]: A list of datetimes.
-            """
-            ret = []
-            for dt in dt_list:
-                ret.extend(fn(dt.year, dt.month, dt.day, interval=self.interval))
-            return ret
+        days_map = {
+            "one_day": 1,
+            "three_days": 3,
+            "five_days": 5,
+            "seven_days": 7,
+        }
 
         s = time.time()
         for key, value in EVAL_CASES.items():
-            if key == "one_day":
-                self.eval_cases |= set(get_datetime_list(value, TimeUtil.entire_period))
-            elif key == "three_days":
-                self.eval_cases |= set(get_datetime_list(value, TimeUtil.three_days))
+            n_days = days_map.get(key)
+            
+            if n_days is None:
+                raise RuntimeError(f"Invalid days: {key}")
+
+            for dt in value:
+                self.eval_cases |= set(
+                    TimeUtil.N_days_time_list(
+                        dt.year, dt.month, dt.day, self.interval, n_days
+                    )
+                )
 
         self.eval_cases &= set(self.time_list)
         log.debug(f"{self.BC} Built eval case list in {time.time() - s:.5f} sec.")

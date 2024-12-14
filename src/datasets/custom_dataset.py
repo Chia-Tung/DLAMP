@@ -93,7 +93,10 @@ class CustomDataset(Dataset):
         # order in `config/data/data_config.yaml`
         data_dict = self._data_gnrt.yield_data(dt, self._data_list)
         for var_level_str, data in data_dict.items():
-            if var_level_str in self.stat_dict:
+            if var_level_str in self.stat_dict and var_level_str not in [
+                "Cloud Water Mixing Ratio@100 Hpa",
+                "Cloud Water Mixing Ratio@200 Hpa",
+            ]:
                 stat = self.stat_dict[var_level_str]
                 data = (data - stat["mean"]) / stat["std"]
             _, level = DataCompose.retrive_var_level_from_string(var_level_str)

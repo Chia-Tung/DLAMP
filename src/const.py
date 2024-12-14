@@ -282,10 +282,18 @@ EVAL_CASES = {
         datetime(2022, 10, 16),  # TC NESAT
         # datetime(2022, 10, 31),  # TC NALGAE
         # == pass by northern Taiwan == #
-        datetime(2020, 8, 3),  # TC HAGUPIT
+        datetime(2020, 8, 3),  # TC HAGUPI
+    ],
+    "five_days": [
         # == pass by eastern Taiwan == #
         datetime(2023, 7, 26),  # TC DOKSURI
         # == landing == #
-        datetime(2023, 9, 3),  # TC HAIKUI
+        # datetime(2023, 9, 3),  # TC HAIKUI
+        datetime(2024, 7, 24),  # TC GAEMI
+        # datetime(2024, 10, 31),  # TC Kong-rey
+    ],
+    "seven_days": [
+        # == landing == #
+        datetime(2024, 10, 3),  # TC Krathon
     ],
 }

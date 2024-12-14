@@ -13,10 +13,10 @@ from .tw_background import TwBackground
 
 
 class VizWind(TwBackground):
-    def __init__(self, pressure_level: int):
+    def __init__(self, pressure_level: int | None = None):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"Wind@{self.press_lv}Hpa"
+        self.title_suffix = f"Wind@{self.press_lv}Hpa" if pressure_level else ""
 
     def plot_mxn(
         self,

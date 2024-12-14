@@ -41,8 +41,12 @@ class TimeUtil:
         return time_list
 
     @staticmethod
-    def three_days(
-        year: int, month: int, day: int, interval: dict[str, int] | timedelta
+    def N_days_time_list(
+        year: int,
+        month: int,
+        day: int,
+        interval: dict[str, int] | timedelta,
+        n_days: int,
     ) -> list[datetime]:
         """
         Generate a list of datetime objects representing the three days before and after a given date.
@@ -58,9 +62,16 @@ class TimeUtil:
         Returns:
             list[datetime]: A list of datetime objects representing the three days before and after the given date.
         """
+        assert n_days >= 1, f"n_days must be a positive integer but get {n_days}"
+        half_range = n_days // 2
+        start = -half_range if n_days > 1 else 0
+        end = half_range + 1 if n_days % 2 == 1 else half_range
+
         target_t = [
-            datetime(year, month, day) + i * timedelta(days=1) for i in range(-1, 2)
+            datetime(year, month, day) + i * timedelta(days=1)
+            for i in range(start, end)
         ]
+
         time_list = []
         for calendar in target_t:
             time_list.extend(

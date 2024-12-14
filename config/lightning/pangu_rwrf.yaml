@@ -5,8 +5,8 @@ split_config:
   ratios: [6, 2, 2]
   order_by_time: True
 sampling_rate: 3
-batch_size: 4
-workers: 16
+batch_size: 1
+workers: 8 # mpi proc = 32 num_gpus = 8 max_user_processes = 2048
 # LightningModule
 surface_alpha: 0.25
 optim_config:
