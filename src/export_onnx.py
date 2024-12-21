@@ -23,7 +23,11 @@ def main(cfg: DictConfig) -> None:
 
     # model builder
     model_builder = get_builder(cfg.model.model_name)(
-        "export_onnx", data_list, **cfg.model, **cfg.lightning
+        "export_onnx",
+        data_list,
+        image_shape=data_manager.image_shape,
+        **cfg.model,
+        **cfg.lightning
     )
 
     # load LightningModule from checkpoint

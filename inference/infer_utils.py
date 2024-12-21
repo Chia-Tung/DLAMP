@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import partial, wraps
 from typing import Callable
 
+import numpy as np
 import onnxruntime as ort
 import torch
 import yaml
@@ -25,7 +26,7 @@ def prediction_postprocess(
             The structure is like:
             {
                 "input_upper": 0,
-                "input_sruface": 1,
+                "input_surface": 1,
                 "target_upper": 2,
                 "target_surface": 3,
                 "output_upper": 4,
@@ -42,8 +43,12 @@ def prediction_postprocess(
             predictions[key].append(trainer_output[epoch_id][value])
 
     for k, v in predictions.items():
-        tmp = torch.cat(v, dim=0)  # {"input_upper": (B, lv, h, w, c)...}
-        tmp = destandardization(tmp.cpu().numpy())
+        if "output" in k:
+            tmp = [destandardization(ele.cpu().numpy()) for ele in v]
+            tmp = np.stack(tmp, axis=0)  # {"output_upper": (B, Seq, lv, h, w, c)}
+        else:
+            tmp = torch.cat(v, dim=0)  # {"input_upper": (B, lv, h, w, c)...}
+            tmp = destandardization(tmp.cpu().numpy())
         predictions[k] = torch.from_numpy(tmp)
 
     return predictions

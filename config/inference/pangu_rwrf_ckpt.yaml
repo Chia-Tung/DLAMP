@@ -1,4 +1,4 @@
 infer_type: "ckpt"
-best_ckpt: "./checkpoints/Pangu_240918_013632-epoch=870-val_loss_epoch=0.1731.ckpt"
+best_ckpt: "./checkpoints/Pangu_241214_232604-epoch=203-val_loss_epoch=0.1426.ckpt"
 output_itv:
-  hours: 12
+  hours: 6

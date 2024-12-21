@@ -34,7 +34,6 @@ class TwBackground:
         """
         Plots the county data on a figure
         """
-        fig.tight_layout()
         # fig.patch.set_visible(False)
         # ax.axis("off")
         ax = self.county_data.plot(

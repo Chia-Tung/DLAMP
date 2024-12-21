@@ -132,7 +132,7 @@ class PanguLightningModule(L.LightningModule):
         # check `self.predict_step()` for the order
         return {
             "input_upper": 0,
-            "input_sruface": 1,
+            "input_surface": 1,
             "target_upper": 2,
             "target_surface": 3,
             "output_upper": 4,

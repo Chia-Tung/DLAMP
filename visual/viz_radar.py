@@ -61,7 +61,7 @@ class VizRadar(TwBackground):
                 fig, tmp_ax, lon, lat, ground_truth[j], time_title
             )
 
-        # prdiction
+        # prediction
         for j in range(columns):
             tmp_ax = ax[1, j]
             time_title = (

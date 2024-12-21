@@ -2,8 +2,10 @@ import abc
 import warnings
 from datetime import datetime, timedelta
 
+import numpy as np
 from omegaconf import DictConfig
 
+from src.datasets import CustomDataset
 from src.managers import DataManager, DatetimeManager
 from src.utils import DataCompose, DataType, Level
 
@@ -35,7 +37,6 @@ class InferenceBase(metaclass=abc.ABCMeta):
             self.data_list,
             **self.cfg.data,
             **self.cfg.lightning,
-            **self.cfg.inference,
             init_time_list=self.init_time_list,
         )
         self.data_manager.setup("predict")
@@ -66,28 +67,17 @@ class InferenceBase(metaclass=abc.ABCMeta):
 
         init_time_list = set()
         for eval_case in self.eval_cases:
-            init_times = self.showcase_init_time_list(eval_case)
-            for init_time in init_times:
-                fcst_time = init_time + self.output_itv
+            for num in range(self.showcase_length):
+                fcst_time = eval_case + self.output_itv * num
 
-                if not DatetimeManager.sanity_check(init_time, self.data_list):
-                    raise ValueError(
-                        f"Sanity check failed for init time: {init_time}, "
-                        f"please choose another day instead {eval_case}."
-                    )
                 if not DatetimeManager.sanity_check(fcst_time, self.data_list):
                     raise ValueError(
                         f"Sanity check failed for fcst time: {fcst_time}, "
                         f"please choose another day instead {eval_case}."
                     )
-                init_time_list.add(init_time)
-        return sorted(init_time_list)
 
-    def showcase_init_time_list(self, case_dt: datetime) -> list[datetime]:
-        """
-        If adding additional initial times to `init_time` list, override this function.
-        """
-        return [case_dt]
+                init_time_list.add(eval_case)
+        return sorted(init_time_list)
 
     @property
     def init_time(self) -> list[datetime]:
@@ -114,3 +104,7 @@ class InferenceBase(metaclass=abc.ABCMeta):
         Inference process.
         """
         return NotImplemented
+
+    def boundary_swapping(self, data: np.ndarray, dt: datetime, pct_grid_swap: float):
+        dataset: CustomDataset = self.data_manager._predict_dataset
+        data_dict = dataset._get_variables_from_dt(dt)  # {"surface": (z, h, w, c)...}
