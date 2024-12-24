@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 
-import torch
+import numpy as np
 from omegaconf import DictConfig
 from tqdm import trange
 
@@ -53,8 +53,8 @@ class BatchInferenceOnnx(InferenceBase):
 
         ret = []
         for batch_id, (input, target) in enumerate(data_loader):
-            inp_upper = input["upper_air"].numpy()
-            inp_surface = input["surface"].numpy()
+            inp_upper = input["upper_air"].cpu().numpy()
+            inp_surface = input["surface"].cpu().numpy()
 
             # auto-regression
             tmp_upper, tmp_sfc = [], []
@@ -64,23 +64,25 @@ class BatchInferenceOnnx(InferenceBase):
                     self.ort_sess.get_inputs()[1].name: inp_surface,
                 }
                 inp_upper, inp_surface = self.ort_sess.run(None, ort_inputs)
+
                 if (step + 1) % interval == 0:
-                    tmp_upper.append(torch.from_numpy(inp_upper))
-                    tmp_sfc.append(torch.from_numpy(inp_surface))
+                    tmp_upper.append(inp_upper.copy())
+                    tmp_sfc.append(inp_surface.copy())
+
                 if is_bdy_swap:
                     curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
                     inp_upper = self.boundary_swapping(inp_upper, curr_time, 0.1)
                     inp_surface = self.boundary_swapping(inp_surface, curr_time, 0.1)
 
             # post-process 1, shape = (1, lv, H, W, c) or (Seq, lv, H, W, c)
-            tmp_upper = torch.cat(tmp_upper, dim=0)
-            tmp_sfc = torch.cat(tmp_sfc, dim=0)
+            tmp_upper = np.concatenate(tmp_upper, axis=0)
+            tmp_sfc = np.concatenate(tmp_sfc, axis=0)
             ret.append(
                 (
-                    input["upper_air"],
-                    input["surface"],
-                    target["upper_air"],
-                    target["surface"],
+                    input["upper_air"].cpu().numpy(),
+                    input["surface"].cpu().numpy(),
+                    target["upper_air"].cpu().numpy(),
+                    target["surface"].cpu().numpy(),
                     tmp_upper,
                     tmp_sfc,
                 )
@@ -99,7 +101,7 @@ class BatchInferenceOnnx(InferenceBase):
 
     def get_infer_outputs_from_dt(
         self, dt: datetime, phase: str, data_compose: DataCompose
-    ) -> torch.Tensor:
+    ) -> np.ndarray:
         time_idx = self.init_time.index(dt)
         if data_compose.level.is_surface():
             var_idx = self.surface_vars.index(data_compose.var_name)

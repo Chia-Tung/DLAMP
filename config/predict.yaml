@@ -15,7 +15,7 @@ hydra:
 
 lightning:
   sampling_rate: 1
-  batch_size: 1 # must be 1 for plotting
+  batch_size: 1 # must be 1 !!!
   workers: 4
 
 defaults:

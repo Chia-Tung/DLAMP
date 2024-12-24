@@ -27,7 +27,7 @@ def main(cfg: DictConfig) -> None:
         data_list,
         image_shape=data_manager.image_shape,
         **cfg.model,
-        **cfg.lightning
+        **cfg.lightning,
     )
 
     # load LightningModule from checkpoint

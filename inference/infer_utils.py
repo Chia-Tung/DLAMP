@@ -14,13 +14,13 @@ from src.utils import DataCompose
 
 
 def prediction_postprocess(
-    trainer_output: list[list[torch.Tensor]], mapping: dict[int, str]
-) -> defaultdict[str, torch.Tensor]:
+    trainer_output: list[list[np.ndarray]], mapping: dict[int, str]
+) -> defaultdict[str, np.ndarray]:
     """
     Perform post-processing on the trainer output predictions by combining all the batches.
 
     Parameters:
-        trainer_output (list[list[torch.Tensor]]): The output predictions from the trainer.
+        trainer_output (list[list[np.ndarray]]): The output predictions from the trainer.
             Shape: [epochs][num_product_type][B, lv, h, w, c]
         mapping (dict[int, str]): A mapping dictionary representing the order of trainer_output.
             The structure is like:
@@ -44,13 +44,12 @@ def prediction_postprocess(
 
     for k, v in predictions.items():
         if "output" in k:
-            tmp = [destandardization(ele.cpu().numpy()) for ele in v]
+            tmp = [destandardization(ele) for ele in v]
             tmp = np.stack(tmp, axis=0)  # {"output_upper": (B, Seq, lv, h, w, c)}
         else:
-            tmp = torch.cat(v, dim=0)  # {"input_upper": (B, lv, h, w, c)...}
-            tmp = destandardization(tmp.cpu().numpy())
-        predictions[k] = torch.from_numpy(tmp)
-
+            tmp = np.concatenate(v, axis=0)  # {"input_upper": (B, lv, h, w, c)...}
+            tmp = destandardization(tmp)
+        predictions[k] = tmp
     return predictions
 
 

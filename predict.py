@@ -13,7 +13,7 @@ from visual import *
 @hydra.main(version_base=None, config_path="config", config_name="predict")
 def main(cfg: DictConfig) -> None:
     OmegaConf.set_struct(cfg, True)
-    eval_cases = [datetime(2023, 7, 27, 0)]
+    eval_cases = [datetime(2022, 9, 11)]
     eval_cases.sort()
 
     # Inference
@@ -26,7 +26,7 @@ def main(cfg: DictConfig) -> None:
             importlib.import_module("inference"), "BatchInferenceOnnx"
         )
     infer_machine = infer_machine(cfg, eval_cases)
-    infer_machine.infer()
+    infer_machine.infer(is_bdy_swap=cfg.inference.is_bdy_swap)
 
     # Prepare lat/lon
     data_gnrt: DataGenerator = infer_machine.data_manager.data_gnrt

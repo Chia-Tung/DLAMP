@@ -76,7 +76,7 @@ class InferenceBase(metaclass=abc.ABCMeta):
                         f"please choose another day instead {eval_case}."
                     )
 
-                init_time_list.add(eval_case)
+            init_time_list.add(eval_case)
         return sorted(init_time_list)
 
     @property
@@ -105,6 +105,47 @@ class InferenceBase(metaclass=abc.ABCMeta):
         """
         return NotImplemented
 
-    def boundary_swapping(self, data: np.ndarray, dt: datetime, pct_grid_swap: float):
+    def boundary_swapping(
+        self, data: np.ndarray, dt: datetime, pct_grid_swap: float
+    ) -> np.ndarray:
+        """
+        Swaps the boundary values of the predicted data with actual values
+        from the dataset. The width of this boundary ring is determined by
+        the `pct_grid_swap` parameter.
+
+        Args:
+            data (np.ndarray): Input data array with shape (batch, level,
+                width, height, channel). Batch must be 1.
+            dt (datetime): The datetime for which to get the actual values.
+            pct_grid_swap (float): Percentage of grid width/height to swap
+                at boundaries. Value should be between 0 and 1.
+
+        Returns:
+            np.ndarray: Data array with boundary values swapped, same shape as input
+                (batch, level, width, height, channel).
+
+        Raises:
+            AssertionError: If batch size is not 1.
+        """
+        assert (
+            0 < pct_grid_swap < 1
+        ), f"Value should be between 0 and 1, but got {pct_grid_swap}"
         dataset: CustomDataset = self.data_manager._predict_dataset
         data_dict = dataset._get_variables_from_dt(dt)  # {"surface": (z, h, w, c)...}
+
+        batch, level, width, height, channel = data.shape
+        assert batch == 1, f"Only 1 eval case at a time, but got {batch}"
+        edge_x = np.ceil(pct_grid_swap * width / 2).astype(np.int32)
+        edge_y = np.ceil(pct_grid_swap * height / 2).astype(np.int32)
+
+        # Create a boolean mask for the boundary ring
+        mask = np.zeros((width, height), dtype=bool)
+        mask[:edge_x, :] = mask[-edge_x:, :] = True
+        mask[:, :edge_y] = mask[:, -edge_y:] = True
+
+        if level == 1:
+            data[0, 0, mask, :] = data_dict["surface"][0, mask, :]
+        else:
+            data[0, :, mask, :] = data_dict["upper_air"][:, mask, :].transpose(1, 0, 2)
+
+        return data

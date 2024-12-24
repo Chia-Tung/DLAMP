@@ -1,5 +1,6 @@
 infer_type: "onnx"
-onnx_path: "./export/Pangu_model_241214.onnx"
+onnx_path: "./export/Pangu_model_241222.onnx"
+is_bdy_swap: True
 output_itv:
   hours: 6
 gpu_id: 0
