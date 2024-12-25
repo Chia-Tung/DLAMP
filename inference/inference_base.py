@@ -4,10 +4,11 @@ from datetime import datetime, timedelta
 
 import numpy as np
 from omegaconf import DictConfig
+from tqdm import trange
 
 from src.datasets import CustomDataset
 from src.managers import DataManager, DatetimeManager
-from src.utils import DataCompose, DataType, Level
+from src.utils import DataCompose, DataGenerator, DataType, Level
 
 
 class InferenceBase(metaclass=abc.ABCMeta):
@@ -105,7 +106,7 @@ class InferenceBase(metaclass=abc.ABCMeta):
         """
         return NotImplemented
 
-    def boundary_swapping(
+    def _boundary_swapping(
         self, data: np.ndarray, dt: datetime, pct_grid_swap: float
     ) -> np.ndarray:
         """
@@ -149,3 +150,69 @@ class InferenceBase(metaclass=abc.ABCMeta):
             data[0, :, mask, :] = data_dict["upper_air"][:, mask, :].transpose(1, 0, 2)
 
         return data
+
+    def get_figure_materials(self, case_dt: datetime, data_compose: DataCompose):
+        """Get ground truth and prediction data for plotting figures.
+
+        Args:
+            case_dt (datetime): The initial datetime to get data for
+            data_compose (DataCompose): Configuration specifying the variable and level to retrieve
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: data with shape (showcase_length, H, W)
+        """
+        input_data = self.get_infer_results_from_dt(case_dt, "input", data_compose)
+        output_data = self.get_infer_results_from_dt(case_dt, "output", data_compose)
+
+        # (showcase_length, H, W)
+        output_plot_data = np.concatenate((input_data, output_data), axis=0)
+
+        # prepare ground truth data
+        data_gnrt: DataGenerator = self.data_manager.data_gnrt
+        gt_data = []
+        for i in trange(self.showcase_length, desc=f"Get {data_compose} ground truth"):
+            curr_time = case_dt + i * self.output_itv
+            gt_data.append(data_gnrt.yield_data(curr_time, data_compose))  # (H, W)
+        gt_data = np.stack(gt_data, axis=0)  # (showcase_length, H, W)
+
+        return gt_data, output_plot_data
+
+    def get_infer_results_from_dt(
+        self, dt: datetime, phase: str, data_compose: DataCompose
+    ) -> np.ndarray:
+        """Get inference input/output data for a specific datetime and variable.
+
+        Args:
+            dt (datetime): The datetime to get data for.
+            phase (str): Either "input" or "output" to specify which data to retrieve.
+                The shape of input data is (time, level, height, width, channel).
+                The shape of output data is (time, seq_len, level, height, width, channel).
+            data_compose (DataCompose): Configuration specifying the variable and level.
+
+        Returns:
+            np.ndarray: The requested data array. The output shape are all the same:
+                (seq_len, height, width), for input phase, seq_len is 1.
+
+        Raises:
+            AssertionError: If phase is not "input" or "output"
+            ValueError: If the requested variable or level is not found
+        """
+        assert phase in ["input", "output"], f"invalid phase: {phase}"
+        time_idx = self.init_time.index(dt)
+        if data_compose.level.is_surface():
+            data = getattr(self, f"{phase}_surface")
+            var_idx = self.surface_vars.index(data_compose.var_name)
+            return (
+                data[time_idx, :, :, :, var_idx]
+                if phase == "input"
+                else data[time_idx, :, 0, :, :, var_idx]
+            )
+        else:
+            data = getattr(self, f"{phase}_upper")
+            level_idx = self.pressure_lv.index(data_compose.level)
+            var_idx = self.upper_vars.index(data_compose.var_name)
+            return (
+                data[time_idx, level_idx : level_idx + 1, :, :, var_idx]
+                if phase == "input"
+                else data[time_idx, :, level_idx, :, :, var_idx]
+            )

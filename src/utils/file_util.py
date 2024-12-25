@@ -66,23 +66,39 @@ def read_cwa_ncfile(
             string representations to their corresponding numpy arrays.
     """
     dataset = xr.open_dataset(str(file_path))
-    pres_lvs = dataset[DataType.P.nc_key].values
-
-    def fn(dc: DataCompose):
-        data = dataset[dc.combined_key].values.squeeze()  # (Z, H, W)
-        data = data.astype(dtype) if dtype is not None else data
-        if not dc.level.is_surface():
-            (idx,) = np.where(pres_lvs == float(dc.level.nc_key))
-            data = data[idx[0]]
-        return data  # (H, W)
 
     if isinstance(data_compose, DataCompose):
-        return fn(data_compose)
+        return get_var_from_wrfout_nc(dataset, data_compose, dtype)
     elif isinstance(data_compose, list):
         ret = {}
         for ele in data_compose:
-            ret[str(ele)] = fn(ele)
+            ret[str(ele)] = get_var_from_wrfout_nc(dataset, ele, dtype)
         return ret
+
+
+def get_var_from_wrfout_nc(
+    dataset: xr.Dataset, dc: DataCompose, dtype: np.dtype | None = None
+):
+    """
+    Extract variable data from a RWRF output NetCDF dataset based on the data composition.
+
+    Args:
+        dataset (xr.Dataset): The xarray Dataset containing RWRF data
+        dc (DataCompose): DataCompose object specifying the variable and level to extract
+        dtype (np.dtype | None): The numpy dtype to cast the data to. If None, keeps original dtype.
+
+    Returns:
+        np.ndarray: The extracted variable data. For surface variables, returns shape (H, W).
+            For pressure level variables, extracts the specified level and returns shape (H, W).
+            H and W are the horizontal dimensions of the data.
+    """
+    pres_lvs = dataset[DataType.P.nc_key].values
+    data = dataset[dc.combined_key].values.squeeze()  # (Z, H, W)
+    data = data.astype(dtype) if dtype is not None else data
+    if not dc.level.is_surface():
+        (idx,) = np.where(pres_lvs == float(dc.level.nc_key))
+        data = data[idx[0]]
+    return data  # (H, W)
 
 
 def read_cwa_npfile(

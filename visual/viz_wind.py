@@ -13,10 +13,10 @@ from .tw_background import TwBackground
 
 
 class VizWind(TwBackground):
-    def __init__(self, pressure_level: int | None = None):
+    def __init__(self, pressure_level: str | None = None):
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"Wind@{self.press_lv}Hpa" if pressure_level else ""
+        self.title_suffix = f"Wind@{self.press_lv}" if pressure_level else ""
 
     def plot_mxn(
         self,
@@ -77,7 +77,7 @@ class VizWind(TwBackground):
             lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
             lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
 
-        fig, ax = plt.subplots(1, 1, figsize=(7, 7), dpi=200, facecolor="w")
+        fig, ax = plt.subplots(1, 1, figsize=(6, 5), dpi=200, facecolor="w")
         fig, ax = super().plot_bg(fig, ax)
         fig, ax = self._plot_wind(fig, ax, lon, lat, u_wind, v_wind, title)
 
@@ -105,7 +105,9 @@ class VizWind(TwBackground):
             colors=WSP_COLOR,
             zorder=0,
         )
-        ax.streamplot(lon, lat, u_wind, v_wind, zorder=0, color="C0")
+        ax.streamplot(
+            lon, lat, u_wind, v_wind, zorder=0, color="C0", linewidth=0.5, arrowsize=0.6
+        )
         if title:
             ax.set_title(f"{title} {self.title_suffix}")
 
@@ -124,8 +126,8 @@ class VizWind(TwBackground):
         self,
         lon: np.ndarray,
         lat: np.ndarray,
-        u_wind_list: list[np.ndarray],
-        v_wind_list: list[np.ndarray],
+        u_wind_list: np.ndarray,
+        v_wind_list: np.ndarray,
         titles: list[str] = [],
         grid_on: bool = False,
     ):
@@ -133,10 +135,10 @@ class VizWind(TwBackground):
             lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
             lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
 
-        cols = len(u_wind_list)
+        cols = u_wind_list.shape[0]
 
         plt.close()
-        fig, ax = plt.subplots(1, cols, figsize=(20, 7), dpi=200, facecolor="w")
+        fig, ax = plt.subplots(1, cols, figsize=(15, 2.5), dpi=200, facecolor="w")
         for j in range(cols):
             tmp_ax = ax[j]
             title = titles[j] if titles else ""

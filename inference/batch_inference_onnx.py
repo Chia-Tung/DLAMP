@@ -6,7 +6,6 @@ from omegaconf import DictConfig
 from tqdm import trange
 
 from src.models.lightning_modules import PanguLightningModule
-from src.utils import DataCompose
 
 from .infer_utils import init_ort_instance, prediction_postprocess
 from .inference_base import InferenceBase
@@ -48,7 +47,7 @@ class BatchInferenceOnnx(InferenceBase):
             `self.output_itv` and `self.showcase_length` respectively.
         """
         data_loader = self.data_manager.predict_dataloader()
-        interval = self.output_itv.seconds // 3600
+        interval = self.output_itv // self.data_itv
         predict_iters = (self.showcase_length - 1) * interval
 
         ret = []
@@ -71,8 +70,8 @@ class BatchInferenceOnnx(InferenceBase):
 
                 if is_bdy_swap:
                     curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
-                    inp_upper = self.boundary_swapping(inp_upper, curr_time, 0.1)
-                    inp_surface = self.boundary_swapping(inp_surface, curr_time, 0.1)
+                    inp_upper = self._boundary_swapping(inp_upper, curr_time, 0.1)
+                    inp_surface = self._boundary_swapping(inp_surface, curr_time, 0.1)
 
             # post-process 1, shape = (1, lv, H, W, c) or (Seq, lv, H, W, c)
             tmp_upper = np.concatenate(tmp_upper, axis=0)
@@ -95,22 +94,3 @@ class BatchInferenceOnnx(InferenceBase):
             setattr(self, product_type, tensor)
 
         log.info(f"Batch inference finished at {datetime.now()}")
-
-    def get_figure_materials(self, case_dt: datetime, data_compose: DataCompose):
-        pass
-
-    def get_infer_outputs_from_dt(
-        self, dt: datetime, phase: str, data_compose: DataCompose
-    ) -> np.ndarray:
-        time_idx = self.init_time.index(dt)
-        if data_compose.level.is_surface():
-            var_idx = self.surface_vars.index(data_compose.var_name)
-            return getattr(self, f"{phase}_surface")[
-                time_idx : time_idx + self.showcase_length, 0, :, :, var_idx
-            ]
-        else:
-            level_idx = self.pressure_lv.index(data_compose.level)
-            var_idx = self.upper_vars.index(data_compose.var_name)
-            return getattr(self, f"{phase}_upper")[
-                time_idx : time_idx + self.showcase_length, level_idx, :, :, var_idx
-            ]
