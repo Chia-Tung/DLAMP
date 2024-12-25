@@ -23,7 +23,7 @@ class VizPressure(TwBackground):
         grid_on: bool = False,
     ) -> tuple[Figure, Axes]:
         plt.close()
-        fig, ax = plt.subplots(1, 1, figsize=(7, 7), dpi=200, facecolor="w")
+        fig, ax = plt.subplots(1, 1, figsize=(6, 5), dpi=200, facecolor="w")
         fig, ax = super().plot_bg(fig, ax, grid_on)
         fig, ax = self._plot_pressure(fig, ax, lon, lat, data, title)
 
@@ -84,14 +84,14 @@ class VizPressure(TwBackground):
         self,
         lon: np.ndarray,
         lat: np.ndarray,
-        data: list[np.ndarray],
+        data: np.ndarray,
         titles: list[str] = [],
         grid_on: bool = False,
     ):
-        cols = len(data)
+        cols = data.shape[0]
 
         plt.close()
-        fig, ax = plt.subplots(1, cols, figsize=(20, 7), dpi=200, facecolor="w")
+        fig, ax = plt.subplots(1, cols, figsize=(15, 2.5), dpi=200, facecolor="w")
         for j in range(cols):
             tmp_ax = ax[j]
             title = titles[j] if titles else ""
@@ -109,12 +109,13 @@ class VizPressure(TwBackground):
         data: np.ndarray,
         title: str = "",
     ) -> tuple[Figure, Axes]:
+        data = np.round(data / 100)  # pa to hpa
         conf = ax.contourf(
             lon,
             lat,
             data,
             cmap="viridis",
-            levels=np.linspace(950, 1010, 30),
+            levels=np.linspace(870, 1010, 36),
             zorder=0,
             extend="both",
         )

@@ -7,14 +7,14 @@ from .tw_background import TwBackground
 
 
 class VizGph(TwBackground):
-    def __init__(self, pressure_level: int):
+    def __init__(self, pressure_level: int | None = None):
         """
         This class plot geopotential height (Z) for a given pressure level.
         If you have geopotential ($phi$), Z = phi / g0 where g0 = 9.80665 m/s^2.
         """
         super().__init__()
         self.press_lv = pressure_level
-        self.title_suffix = f"GPH@{self.press_lv}Hpa"
+        self.title_suffix = f"GPH@{self.press_lv}" if pressure_level else ""
 
     def plot_1xn(
         self,
@@ -24,14 +24,10 @@ class VizGph(TwBackground):
         titles: list[str] = [],
         grid_on: bool = False,
     ):
-        if len(lat.shape) == 2 and len(lon.shape) == 2:
-            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
-            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
-
         cols = len(data)
 
         plt.close()
-        fig, ax = plt.subplots(1, cols, figsize=(20, 7), dpi=200, facecolor="w")
+        fig, ax = plt.subplots(1, cols, figsize=(15, 2.5), dpi=200, facecolor="w")
         for j in range(cols):
             tmp_ax = ax[j]
             title = titles[j] if titles else ""

@@ -38,6 +38,7 @@ class VizWind(TwBackground):
 
         rows = 2  # gt/pred
         columns = ground_truth_u.shape[0]
+        plt.close()
         fig, ax = plt.subplots(rows, columns, figsize=(20, 7), dpi=200, facecolor="w")
 
         # ground truth
@@ -51,7 +52,7 @@ class VizWind(TwBackground):
                 fig, tmp_ax, lon, lat, ground_truth_u[j], ground_truth_v[j], time_title
             )
 
-        # prdiction
+        # prediction
         for j in range(columns):
             tmp_ax = ax[1, j]
             time_title = (
@@ -77,6 +78,7 @@ class VizWind(TwBackground):
             lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
             lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
 
+        plt.close()
         fig, ax = plt.subplots(1, 1, figsize=(6, 5), dpi=200, facecolor="w")
         fig, ax = super().plot_bg(fig, ax)
         fig, ax = self._plot_wind(fig, ax, lon, lat, u_wind, v_wind, title)
