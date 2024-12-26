@@ -34,7 +34,6 @@ class TwBackground:
         """
         Plots the county data on a figure
         """
-        fig.tight_layout()
         # fig.patch.set_visible(False)
         # ax.axis("off")
         ax = self.county_data.plot(
@@ -46,9 +45,10 @@ class TwBackground:
         # ax.set_ylim(20, 27) # QPESUMS
         # ax.set_xlim(116, 125.7)  # RWRF
         # ax.set_ylim(19.4, 28)  # RWRF
-        # ax.set_xlim(self.lon_range[0], self.lon_range[1])  # interp
         ax.set_xlim(117, 124.6)  # interp
         ax.set_ylim(self.lat_range[0], self.lat_range[1])  # interp
+        # ax.set_xlim(117.5, 124.1)  # custom
+        # ax.set_ylim(20.7, 26.8)  # custom
 
         # default grid zorder is 2.5
         if grid_on:

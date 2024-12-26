@@ -1,13 +1,13 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
+from tqdm import trange
 
 from src.models.lightning_modules import PanguLightningModule
 from src.models.model_utils import get_builder
-from src.utils import DataCompose
 
 from .infer_utils import prediction_postprocess
 from .inference_base import InferenceBase
@@ -23,82 +23,87 @@ class BatchInferenceCkpt(InferenceBase):
         super().__init__(cfg, eval_cases)
 
     def _setup(self):
-        self.model_builder = get_builder(self.cfg.model.model_name)(
-            "predict", self.data_list, **self.cfg.model, **self.cfg.lightning
+        model_builder = get_builder(self.cfg.model.model_name)(
+            "predict",
+            self.data_list,
+            image_shape=self.data_manager.image_shape,
+            **self.cfg.model,
+            **self.cfg.lightning,
         )
-        self.model = self.model_builder.build_model(
-            predict_iters=self.cfg.inference.output_itv.hours
-        )
-        self.trainer = self.model_builder.build_trainer(False)
 
-    def infer(self):
+        self.pl_module = PanguLightningModule.load_from_checkpoint(
+            checkpoint_path=self.cfg.inference.best_ckpt,
+            test_dataloader=None,
+            backbone_model=model_builder._backbone_model(),
+        )
+
+        self.pl_module = self.pl_module.cuda()
+        self.pl_module.eval()
+
+    def infer(self, is_bdy_swap: bool = False):
         """
-        Do inference.
+        Perform batch inference using ONNX runtime.
 
-        Save the `input_upper`, `input_surface`, `target_upper`, `target_surface`,
-        `output_upper`, and `output_surface` as attributes of the class. Each attribute
-        is a `torch.Tensor` of shape (B, img_Z, img_H, img_W, Ch).
+        This method iterates through the predict dataloader and stores
+        intermediat results. The predictions are then post-processed
+        and stored as attributes of the class.
 
-        Args:
-            None
+        The method performs the following steps:
+        1. Initializes data loader and calculates iteration parameters.
+        2. Iterates through batches, performing inference for each time step.
+        3. Stores intermediate results at specified intervals.
+        4. Post-processes the collected results.
+        5. Stores the final predictions as class attributes.
 
-        Returns:
-            None
+        Note:
+            The number of iterations and storage interval are determined by
+            `self.output_itv` and `self.showcase_length` respectively.
         """
-        predictions = self.trainer.predict(
-            self.model, self.data_manager, ckpt_path=self.cfg.inference.best_ckpt
-        )
+        data_loader = self.data_manager.predict_dataloader()
+        interval = self.output_itv // self.data_itv
+        predict_iters = (self.showcase_length - 1) * interval
+
+        ret = []
+        for batch_id, (input, target) in enumerate(data_loader):
+            inp_upper = input["upper_air"].cuda()
+            inp_surface = input["surface"].cuda()
+
+            # auto-regression
+            tmp_upper, tmp_sfc = [], []
+            for step in trange(predict_iters, desc=f"Infer batch {batch_id}"):
+                inp_upper, inp_surface = self.pl_module(inp_upper, inp_surface)
+
+                if (step + 1) % interval == 0:
+                    tmp_upper.append(inp_upper.cpu().numpy())
+                    tmp_sfc.append(inp_surface.cpu().numpy())
+
+                if is_bdy_swap:
+                    inp_upper = inp_upper.cpu().numpy()
+                    inp_surface = inp_surface.cpu().numpy()
+                    curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
+                    inp_upper = self._boundary_swapping(inp_upper, curr_time, 0.1)
+                    inp_surface = self._boundary_swapping(inp_surface, curr_time, 0.1)
+                    inp_upper = torch.from_numpy(inp_upper).cuda()
+                    inp_surface = torch.from_numpy(inp_surface).cuda()
+
+            # post-process 1, shape = (1, lv, H, W, c) or (Seq, lv, H, W, c)
+            tmp_upper = np.concatenate(tmp_upper, axis=0)
+            tmp_sfc = np.concatenate(tmp_sfc, axis=0)
+            ret.append(
+                (
+                    input["upper_air"].cpu().numpy(),
+                    input["surface"].cpu().numpy(),
+                    target["upper_air"].cpu().numpy(),
+                    target["surface"].cpu().numpy(),
+                    tmp_upper,
+                    tmp_sfc,
+                )
+            )
+
+        # post-process 2, shape = (B, lv, H, W , c) or (B, Seq, lv, H, W, c)
         mapping = PanguLightningModule.get_product_mapping()
-        predictions = prediction_postprocess(predictions, mapping)
+        predictions = prediction_postprocess(ret, mapping)
         for product_type, tensor in predictions.items():
             setattr(self, product_type, tensor)
 
         log.info(f"Batch inference finished at {datetime.now()}")
-
-    def get_figure_materials(
-        self, case_dt: datetime, data_compose: DataCompose
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Retrieves the target and output data from a given case initial time.
-
-        Args:
-            case_dt (datetime): The datetime of the case.
-            data_compose (DataCompose): The data composition object.
-
-        Returns:
-            tuple[np.ndarray, np.ndarray]: A tuple containing the target data and output data.
-                - target_data (np.ndarray): The target data with shape (S, H, W).
-                - output_data (np.ndarray): The output data with shape (S, H, W).
-        """
-
-        def innner_fn(phase: str) -> torch.Tensor:
-            """
-            Args:
-                phase [str]: "input" | "target" | "output"
-            """
-            ret = []
-            init_times = self.showcase_init_time_list(case_dt)
-            for init_time in init_times:
-                data = self.get_infer_outputs_from_dt(init_time, phase, data_compose)
-                ret.append(data)
-            ret = torch.stack(ret)  # (S, H, W)
-            return ret
-
-        target_data = innner_fn("target").numpy()
-        output_data = innner_fn("output").numpy()
-        return target_data, output_data
-
-    def get_infer_outputs_from_dt(
-        self, dt: datetime, phase: str, data_compose: DataCompose
-    ) -> torch.Tensor:
-        time_idx = self.init_time.index(dt)
-        if data_compose.level.is_surface():
-            var_idx = self.surface_vars.index(data_compose.var_name)
-            return getattr(self, f"{phase}_surface")[time_idx, 0, :, :, var_idx]
-        else:
-            level_idx = self.pressure_lv.index(data_compose.level)
-            var_idx = self.upper_vars.index(data_compose.var_name)
-            return getattr(self, f"{phase}_upper")[time_idx, level_idx, :, :, var_idx]
-
-    def showcase_init_time_list(self, eval_case: datetime) -> list[datetime]:
-        return [eval_case + self.data_itv * i for i in range(self.showcase_length)]

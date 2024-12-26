@@ -15,11 +15,11 @@ hydra:
 
 lightning:
   sampling_rate: 1
-  batch_size: 16
+  batch_size: 1 # must be 1 !!!
   workers: 4
 
 defaults:
-  - data: rwrf
+  - data: rwrf_dense
   - lightning: pangu_rwrf
   - model: pangu_rwrf
   - inference: pangu_rwrf_onnx

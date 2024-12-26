@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import partial, wraps
 from typing import Callable
 
+import numpy as np
 import onnxruntime as ort
 import torch
 import yaml
@@ -13,19 +14,19 @@ from src.utils import DataCompose
 
 
 def prediction_postprocess(
-    trainer_output: list[list[torch.Tensor]], mapping: dict[int, str]
-) -> defaultdict[str, torch.Tensor]:
+    trainer_output: list[list[np.ndarray]], mapping: dict[int, str]
+) -> defaultdict[str, np.ndarray]:
     """
     Perform post-processing on the trainer output predictions by combining all the batches.
 
     Parameters:
-        trainer_output (list[list[torch.Tensor]]): The output predictions from the trainer.
+        trainer_output (list[list[np.ndarray]]): The output predictions from the trainer.
             Shape: [epochs][num_product_type][B, lv, h, w, c]
         mapping (dict[int, str]): A mapping dictionary representing the order of trainer_output.
             The structure is like:
             {
                 "input_upper": 0,
-                "input_sruface": 1,
+                "input_surface": 1,
                 "target_upper": 2,
                 "target_surface": 3,
                 "output_upper": 4,
@@ -42,10 +43,13 @@ def prediction_postprocess(
             predictions[key].append(trainer_output[epoch_id][value])
 
     for k, v in predictions.items():
-        tmp = torch.cat(v, dim=0)  # {"input_upper": (B, lv, h, w, c)...}
-        tmp = destandardization(tmp.cpu().numpy())
-        predictions[k] = torch.from_numpy(tmp)
-
+        if "output" in k:
+            tmp = [destandardization(ele) for ele in v]
+            tmp = np.stack(tmp, axis=0)  # {"output_upper": (B, Seq, lv, h, w, c)}
+        else:
+            tmp = np.concatenate(v, axis=0)  # {"input_upper": (B, lv, h, w, c)...}
+            tmp = destandardization(tmp)
+        predictions[k] = tmp
     return predictions
 
 
