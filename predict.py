@@ -37,8 +37,9 @@ def main(cfg: DictConfig) -> None:
     # Prepare lat/lon
     data_gnrt: DataGenerator = infer_machine.data_manager.data_gnrt
     dc_lat, dc_lon = DataCompose.from_config({"Lat": ["NoRule"], "Lon": ["NoRule"]})
-    lat = data_gnrt.yield_data(datetime(2022, 10, 1, 0), dc_lat)
-    lon = data_gnrt.yield_data(datetime(2022, 10, 1, 0), dc_lon)
+    start_t = datetime.strptime(cfg.data.start_time, cfg.data.format)
+    lat = data_gnrt.yield_data(start_t, dc_lat)
+    lon = data_gnrt.yield_data(start_t, dc_lon)
 
     # Prepare painter
     u_compose, v_compose = DataCompose.from_config({"U": ["Hpa850"], "V": ["Hpa850"]})

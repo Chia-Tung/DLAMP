@@ -21,8 +21,8 @@ model:
   hidden_dim: 32
 
 defaults:
-  - data: rwrf
-  - lightning: diffusion_rwrf
-  - model: diffusion_rwrf
+  - data: rwrf_202409
+  - lightning: diffusion_rwrf_202409
+  - model: diffusion_rwrf_202409
   - _self_
   - override hydra/job_logging: default

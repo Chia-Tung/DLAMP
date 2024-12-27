@@ -132,6 +132,7 @@ class DataGenerator:
             data.shape == self._data_shp
         ), f"{target_dt} data shape mismatch: {data.shape} != {self._data_shp}"
 
+    @DeprecationWarning("This function will be removed in the future.")
     def _interp(self, data: np.ndarray) -> np.ndarray:
         """
         Interpolates the given 2D data to the target latitude and longitude using
@@ -148,6 +149,7 @@ class DataGenerator:
         interpolated_data = interp(self.target_lat, self.target_lon)
         return interpolated_data
 
+    @DeprecationWarning("This function will be removed in the future.")
     def setup_target_lat_lon(
         self,
         lat_range: list[float],
