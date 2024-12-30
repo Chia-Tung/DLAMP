@@ -22,6 +22,7 @@ class CustomDataset(Dataset):
         sampling_rate: int,
         init_time_list: list[datetime],
         data_list: list[DataCompose],
+        use_Kth_hour_pred: int | None,
         is_train_or_valid: bool,
     ):
         super().__init__()
@@ -32,6 +33,7 @@ class CustomDataset(Dataset):
         self._sr = sampling_rate
         self._init_time_list = init_time_list
         self._data_list = data_list
+        self.use_Kth_hour_pred = use_Kth_hour_pred
         self._is_train_or_valid = is_train_or_valid
 
         if Path(STANDARDIZATION_PATH).exists():
@@ -91,7 +93,9 @@ class CustomDataset(Dataset):
         pre_output = defaultdict(list)
         # via traversing data_list, the levels/vars are in the the same order as the
         # order in `config/data/data_config.yaml`
-        data_dict = self._data_gnrt.yield_data(dt, self._data_list)
+        data_dict = self._data_gnrt.yield_data(
+            dt, self._data_list, use_Kth_hour_pred=self.use_Kth_hour_pred
+        )
         for var_level_str, data in data_dict.items():
             if var_level_str in self.stat_dict and var_level_str not in [
                 "Cloud Water Mixing Ratio@100 Hpa",

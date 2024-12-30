@@ -44,6 +44,7 @@ class DataGenerator:
             target_time: datetime,
             data_compose: DataCompose | list[DataCompose],
             to_numpy: bool = True,
+            **kwargs,
         ) -> Sequence | dict[str, Sequence]:
             """
             A wrapper function that handles data generation and preprocessing. The output can be either
@@ -61,7 +62,7 @@ class DataGenerator:
                 dictionary of sequences if multiple DataCompose objects are provided.
             """
             data: np.ndarray | dict[str, np.ndarray] = gen_data(
-                target_time, data_compose, dtype=np.float32
+                target_time, data_compose, dtype=np.float32, **kwargs
             )  # (H, W)
 
             if isinstance(data, np.ndarray):
