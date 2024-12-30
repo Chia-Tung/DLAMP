@@ -270,27 +270,28 @@ EVAL_CASES = {
         datetime(2021, 6, 4),  # ATS
         datetime(2022, 6, 24),  # ATS, observe graupel in Taipei
         datetime(2022, 8, 25),  # ATS
-        datetime(2021, 8, 7),  # South-western flow + Tropical Depression
-        datetime(2021, 8, 8),  # South-western flow
     ],
     "three_days": [
+        datetime(2021, 8, 7),  # South-western flow + Tropical Depression
+        datetime(2021, 8, 8),  # South-western flow
+        datetime(2023, 4, 20),  # cold front
+    ],
+    "five_days": [
         # == harsh northward turning == #
         # datetime(2022, 9, 3), # TC HINNAMNOR
         datetime(2022, 9, 12),  # TC MUIFA
         # datetime(2021, 7, 23), # TC IN-FA
         # == north-eastern wind accompanied == #
-        datetime(2022, 10, 16),  # TC NESAT
+        # datetime(2022, 10, 16),  # TC NESAT
         # datetime(2022, 10, 31),  # TC NALGAE
         # == pass by northern Taiwan == #
-        datetime(2020, 8, 3),  # TC HAGUPI
-    ],
-    "five_days": [
+        # datetime(2020, 8, 3),  # TC HAGUPI
         # == pass by eastern Taiwan == #
-        datetime(2023, 7, 26),  # TC DOKSURI
+        # datetime(2023, 7, 26),  # TC DOKSURI
         # == landing == #
         # datetime(2023, 9, 3),  # TC HAIKUI
-        datetime(2024, 7, 24),  # TC GAEMI
-        # datetime(2024, 10, 31),  # TC Kong-rey
+        # datetime(2024, 7, 24),  # TC GAEMI
+        datetime(2024, 10, 31),  # TC Kong-rey
     ],
     "seven_days": [
         # == landing == #

@@ -12,7 +12,7 @@ from tqdm import tqdm, trange
 
 from inference import InferenceBase
 from src.const import DATA_PATH, FIGURE_PATH
-from src.utils import DataCompose, DataGenerator, get_var_from_wrfout_nc
+from src.utils import DataCompose, DataGenerator, get_var_from_rwrf_nc
 from visual import *
 
 
@@ -82,8 +82,8 @@ def main(cfg: DictConfig) -> None:
                 f"{rwrf_dir}/wrfout_d01_{curr_time.strftime('%Y-%m-%d_%H')}_interp"
             )
             dataset = xr.open_dataset(filename)
-            u = get_var_from_wrfout_nc(dataset, u_compose)[57:-57, 57:-57]  # (336, 336)
-            v = get_var_from_wrfout_nc(dataset, v_compose)[57:-57, 57:-57]  # (336, 336)
+            u = get_var_from_rwrf_nc(dataset, u_compose)[57:-57, 57:-57]  # (336, 336)
+            v = get_var_from_rwrf_nc(dataset, v_compose)[57:-57, 57:-57]  # (336, 336)
 
             u_tmp.append(u)
             v_tmp.append(v)

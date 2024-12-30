@@ -75,7 +75,7 @@ class Level(Enum):
     Meter100 = ("100 m", "H10", "")
     Surface = ("Surface", "S00", "")
     SeaSurface = ("Sea Surface", "W00", "")
-    NoRule = ("", "X00", "")
+    NoRule = ("NoRule", "X00", "")
 
     def is_surface(self) -> bool:
         return self in [
