@@ -714,9 +714,5 @@
     "Outgoing Longwave Radiation@Surface": {
         "mean": 0.0,
         "std": 0.0
-    },
-    "Radar@NoRule": {
-        "mean": 2.6260936703541637,
-        "std": 7.044576417439349
     }
 }

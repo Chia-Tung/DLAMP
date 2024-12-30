@@ -67,13 +67,16 @@ def read_cwa_ncfile(
     """
     dataset = xr.open_dataset(str(file_path))
 
-    if isinstance(data_compose, DataCompose):
-        return get_var_from_wrfout_nc(dataset, data_compose, dtype)
-    elif isinstance(data_compose, list):
-        ret = {}
-        for ele in data_compose:
-            ret[str(ele)] = get_var_from_wrfout_nc(dataset, ele, dtype)
-        return ret
+    try:
+        if isinstance(data_compose, DataCompose):
+            return get_var_from_wrfout_nc(dataset, data_compose, dtype)
+        elif isinstance(data_compose, list):
+            ret = {}
+            for ele in data_compose:
+                ret[str(ele)] = get_var_from_wrfout_nc(dataset, ele, dtype)
+            return ret
+    except:
+        raise RuntimeError(f"Data retrival fails. Please validate {file_path}")
 
 
 def get_var_from_wrfout_nc(

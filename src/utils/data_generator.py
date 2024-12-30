@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Callable, Sequence
+from warnings import warn
 
 import numpy as np
 import torch
@@ -132,7 +133,6 @@ class DataGenerator:
             data.shape == self._data_shp
         ), f"{target_dt} data shape mismatch: {data.shape} != {self._data_shp}"
 
-    @DeprecationWarning("This function will be removed in the future.")
     def _interp(self, data: np.ndarray) -> np.ndarray:
         """
         Interpolates the given 2D data to the target latitude and longitude using
@@ -144,12 +144,12 @@ class DataGenerator:
         Returns:
             np.ndarray: The interpolated data.
         """
+        warn("This function will be removed in the future.", DeprecationWarning)
         values = data.ravel()
         interp = LinearNDInterpolator(self.points, values)
         interpolated_data = interp(self.target_lat, self.target_lon)
         return interpolated_data
 
-    @DeprecationWarning("This function will be removed in the future.")
     def setup_target_lat_lon(
         self,
         lat_range: list[float],
@@ -171,6 +171,7 @@ class DataGenerator:
             tuple[np.ndarray, np.ndarray]: A tuple of two 2D arrays: the first is the
                 target latitude array, and the second is the target longitude array.
         """
+        warn("This function will be removed in the future.", DeprecationWarning)
         lat = np.arange(lat_range[0], lat_range[1] + epsilon, resolution)
         lon = np.arange(lon_range[0], lon_range[1] + epsilon, resolution)
         lon_mesh, lat_mesh = np.meshgrid(lon, lat)
