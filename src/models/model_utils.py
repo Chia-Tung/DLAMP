@@ -181,11 +181,12 @@ def is_divisible_elementwise(list1: list[int], list2: list[int]) -> bool:
 
 def get_scheduler_with_warmup(
     optimizer: torch.optim.Optimizer,
-    warmup_steps: int,
+    schedule_type: str,
     training_steps: int,
+    warmup_steps: int | None = None,
+    warmup_epochs: int | None = None,
     cycles: float = 0.5,
     last_epoch: int = -1,
-    schedule_type: str = "cosine",
 ) -> LambdaLR:
     def cosine_decay(current_step):
         # Warmup
@@ -203,6 +204,16 @@ def get_scheduler_with_warmup(
             return current_step / max(1, warmup_steps)
         return 1.0
 
+    def linear_decay(current_epoch):
+        if current_epoch <= warmup_epochs:
+            lr_scale = 1.0
+        else:
+            overflow = current_epoch - warmup_epochs
+            lr_scale = 0.97**overflow
+            if lr_scale < 1e-2:
+                lr_scale = 1e-2
+        return lr_scale
+
     match schedule_type:
         case "cosine":
             return LambdaLR(optimizer, cosine_decay, last_epoch)
@@ -210,6 +221,8 @@ def get_scheduler_with_warmup(
             return LambdaLR(optimizer, constant, last_epoch)
         case "constant_warmup":
             return LambdaLR(optimizer, constant_warmup, last_epoch)
+        case "linear_decay":
+            return LambdaLR(optimizer, linear_decay, last_epoch)
         case _:
             raise ValueError(f"Unsupported schedule type: {schedule_type}")
 

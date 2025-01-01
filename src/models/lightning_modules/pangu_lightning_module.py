@@ -38,16 +38,17 @@ class PanguLightningModule(L.LightningModule):
         )
 
         # set learning rate schedule
+        lr_schedule_name = self.hparams.lr_schedule.name
         lr_scheduler: torch.optim.lr_scheduler.LambdaLR = get_scheduler_with_warmup(
             optimizer,
+            schedule_type=lr_schedule_name,
             training_steps=int(self.trainer.estimated_stepping_batches),
-            schedule_type=self.hparams.lr_schedule.name,
             **self.hparams.lr_schedule.args,
         )
-
+        interval = "epoch" if lr_schedule_name in ["linear_decay"] else "step"
         lr_scheduler_config = {
             "scheduler": lr_scheduler,
-            "interval": "step",
+            "interval": interval,
             "frequency": 1,
             "name": "customized_lr",
         }
