@@ -38,15 +38,20 @@ class DatetimeManager:
         self.eval_cases: set[datetime] = set()
         self._done = False
 
-    def build_initial_time_list(self, data_list: list[DataCompose]) -> DatetimeManager:
+    def build_initial_time_list(
+        self, data_list: list[DataCompose], use_Kth_hour_pred: int | None
+    ) -> DatetimeManager:
         if not Path(BLACKLIST_PATH).exists():
-            self._build_init_time_list(data_list, save_output=True)
+            self._build_init_time_list(data_list, use_Kth_hour_pred, save_output=True)
         else:
             self._quick_build_init_time_list()
         return self
 
     def _build_init_time_list(
-        self, data_list: list[DataCompose], save_output: bool
+        self,
+        data_list: list[DataCompose],
+        use_Kth_hour_pred: int | None,
+        save_output: bool,
     ) -> None:
         """
         Builds initial time list based on the start time and end time. Eliminates datetime which
@@ -54,6 +59,8 @@ class DatetimeManager:
 
         Args:
             data_list (list[DataCompose]): The list of DataCompose objects.
+            use_Kth_hour_pred (int | None): Use Kth hour prediciton to generate the file path
+                if not None. Else, use the oringal inital time.
             save_output (bool): Whether to save the blacklist of initial time to a file.
 
         Returns:
@@ -70,7 +77,7 @@ class DatetimeManager:
         while current_time < self.end_time:
             next_time = current_time + self.interval
 
-            if not self.sanity_check(next_time, data_list):
+            if not self.sanity_check(next_time, data_list, use_Kth_hour_pred):
                 remove.extend([current_time, next_time])
                 current_time += 2 * self.interval
                 skip_current = False
@@ -78,7 +85,9 @@ class DatetimeManager:
                 continue
 
             # skip checking current time if `skip_current = True`
-            if not skip_current and not self.sanity_check(current_time, data_list):
+            if not skip_current and not self.sanity_check(
+                current_time, data_list, use_Kth_hour_pred
+            ):
                 remove.append(current_time)
                 current_time += self.interval
                 skip_current = True
@@ -198,7 +207,7 @@ class DatetimeManager:
         s = time.time()
         for key, value in EVAL_CASES.items():
             n_days = days_map.get(key)
-            
+
             if n_days is None:
                 raise RuntimeError(f"Invalid days: {key}")
 
@@ -216,12 +225,17 @@ class DatetimeManager:
 
     @staticmethod
     def sanity_check(
-        dt: datetime, data_list: list[DataCompose], data_source: str = DATA_SOURCE
+        dt: datetime,
+        data_list: list[DataCompose],
+        use_Kth_hour_pred: int | None = None,
+        data_source: str = DATA_SOURCE,
     ) -> bool:
         """
         Parameters:
             dt (datetime): The target parent directory to check.
             data_list (list[DataCompose]): A list of DataCompose objects representing the data.
+            use_Kth_hour_pred (int | None): Use Kth hour prediciton to generate the file path
+                if not None. Else, use the oringal inital time.
             data_source (str): The way checking the validity depends on different data sources.
                 e.g.
                     "NEO171_RWRF" -> data stored on neo171 server, check files one by one
@@ -243,7 +257,7 @@ class DatetimeManager:
             case "CWA_RWRF":
                 # since CWA prepared the data for us, we believe all variables are consistent
                 # in every netCDF file. Thus, we only check the file existence here.
-                data_filename = gen_path(dt)
+                data_filename = gen_path(dt, use_Kth_hour_pred=use_Kth_hour_pred)
                 return True if data_filename.exists() else False
             case _:
                 log.error(f"Invalid data_source: {data_source}")

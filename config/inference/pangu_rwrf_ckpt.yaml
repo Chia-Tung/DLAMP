@@ -1,5 +1,5 @@
 infer_type: "ckpt"
-best_ckpt: "./checkpoints/Pangu_241222_034119-epoch=026-val_loss_epoch=0.1527.ckpt"
+best_ckpt: "./checkpoints/Pangu_241229_120914-epoch=162-val_loss_epoch=0.1453.ckpt"
 is_bdy_swap: True
 output_itv:
   hours: 6

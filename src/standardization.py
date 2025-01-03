@@ -48,8 +48,9 @@ def calc_standardization(
             continue
 
         while dt < end_time:
-            if gen_path(dt, data_compose).exists():
-                data = gen_data(dt, data_compose)  # (450, 450)
+            use_Kth_hour_pred = getattr(data_config, "use_Kth_hour_pred", None)
+            if gen_path(dt, data_compose, use_Kth_hour_pred).exists():
+                data = gen_data(dt, data_compose, use_Kth_hour_pred)  # (450, 450)
                 # center crop to (336, 336)
                 data = data[57:-57, 57:-57]
                 # random pick values from data

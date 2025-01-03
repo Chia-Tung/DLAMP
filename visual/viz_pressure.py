@@ -91,7 +91,7 @@ class VizPressure(TwBackground):
         cols = data.shape[0]
 
         plt.close()
-        fig, ax = plt.subplots(1, cols, figsize=(15, 2.5), dpi=200, facecolor="w")
+        fig, ax = plt.subplots(1, cols, figsize=(18, 2.5), dpi=200, facecolor="w")
         for j in range(cols):
             tmp_ax = ax[j]
             title = titles[j] if titles else ""
@@ -109,7 +109,7 @@ class VizPressure(TwBackground):
         data: np.ndarray,
         title: str = "",
     ) -> tuple[Figure, Axes]:
-        data = np.round(data / 100)  # pa to hpa
+        # data = np.round(data / 100)  # pa to hpa
         conf = ax.contourf(
             lon,
             lat,

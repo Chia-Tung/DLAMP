@@ -15,7 +15,11 @@ optim_config:
   name: AdamW
   args:
     lr: 1e-5
-warmup_epochs: 3
+lr_schedule:
+  name: linear_decay
+  args:
+    warmup_epochs: 3
+    last_epoch: -1
 # lightning.Trainer
 num_gpus: null
 strategy: "auto"

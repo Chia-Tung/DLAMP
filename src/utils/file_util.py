@@ -1,5 +1,5 @@
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +12,7 @@ from .data_compose import DataCompose, DataType
 def gen_data(
     target_time: datetime,
     data_compose: DataCompose | list[DataCompose],
+    use_Kth_hour_pred: int | None = None,
     dtype: np.dtype | None = None,
 ) -> np.ndarray | dict[str, np.ndarray]:
     """
@@ -21,6 +22,8 @@ def gen_data(
         target_time (datetime): The target time for which the data is generated.
         data_compose (DataCompose | list[DataCompose]): The data composition object or a list
             of data composition objects.
+        use_Kth_hour_pred (int | None): Use the Kth hour prediciton to generate the file path if
+            not None. Else, use the target time.
         dtype (np.dtype | None, optional): The data type of the generated data. Defaults to None.
 
     Returns:
@@ -39,7 +42,7 @@ def gen_data(
                     ret[str(ele)] = read_cwa_npfile(file_name, ele.is_radar, dtype)
                 return ret
         case "CWA_RWRF":
-            file_name = gen_path(target_time)
+            file_name = gen_path(target_time, use_Kth_hour_pred=use_Kth_hour_pred)
             return read_cwa_ncfile(file_name, data_compose, dtype)
         case _:
             raise ValueError(f"Unknown data source: {DATA_SOURCE}")
@@ -67,38 +70,36 @@ def read_cwa_ncfile(
     """
     dataset = xr.open_dataset(str(file_path))
 
-    if isinstance(data_compose, DataCompose):
-        return get_var_from_wrfout_nc(dataset, data_compose, dtype)
-    elif isinstance(data_compose, list):
-        ret = {}
-        for ele in data_compose:
-            ret[str(ele)] = get_var_from_wrfout_nc(dataset, ele, dtype)
-        return ret
+    def fn(dc: DataCompose):
+        """
+        Extract variable data from a RWRF output NetCDF dataset based on the data composition.
 
+        Args:
+            dc (DataCompose): DataCompose object specifying the variable and level to extract
 
-def get_var_from_wrfout_nc(
-    dataset: xr.Dataset, dc: DataCompose, dtype: np.dtype | None = None
-):
-    """
-    Extract variable data from a RWRF output NetCDF dataset based on the data composition.
+        Returns:
+            np.ndarray: The extracted variable data. For surface variables, returns shape (H, W).
+                For pressure level variables, extracts the specified level and returns shape (H, W).
+                H and W are the horizontal dimensions of the data.
+        """
+        pres_lvs = dataset[DataType.P.nc_key].values
+        data = dataset[dc.combined_key].values.squeeze()  # (Z, H, W)
+        data = data.astype(dtype) if dtype is not None else data
+        if not dc.level.is_surface():
+            (idx,) = np.where(pres_lvs == float(dc.level.nc_key))
+            data = data[idx[0]]
+        return data  # (H, W)
 
-    Args:
-        dataset (xr.Dataset): The xarray Dataset containing RWRF data
-        dc (DataCompose): DataCompose object specifying the variable and level to extract
-        dtype (np.dtype | None): The numpy dtype to cast the data to. If None, keeps original dtype.
-
-    Returns:
-        np.ndarray: The extracted variable data. For surface variables, returns shape (H, W).
-            For pressure level variables, extracts the specified level and returns shape (H, W).
-            H and W are the horizontal dimensions of the data.
-    """
-    pres_lvs = dataset[DataType.P.nc_key].values
-    data = dataset[dc.combined_key].values.squeeze()  # (Z, H, W)
-    data = data.astype(dtype) if dtype is not None else data
-    if not dc.level.is_surface():
-        (idx,) = np.where(pres_lvs == float(dc.level.nc_key))
-        data = data[idx[0]]
-    return data  # (H, W)
+    try:
+        if isinstance(data_compose, DataCompose):
+            return fn(data_compose)
+        elif isinstance(data_compose, list):
+            ret = {}
+            for ele in data_compose:
+                ret[str(ele)] = fn(ele)
+            return ret
+    except:
+        raise RuntimeError(f"Data retrival fails. Please validate {file_path}")
 
 
 def read_cwa_npfile(
@@ -137,6 +138,7 @@ def read_cwa_npfile(
 def gen_path(
     target_time: datetime,
     data_compose: None | DataCompose = None,
+    use_Kth_hour_pred: int | None = None,
     data_source: str = DATA_SOURCE,
 ) -> Path:
     """
@@ -145,6 +147,8 @@ def gen_path(
     Parameters:
         target_time (datetime): The target time for generating the path.
         data_compose (None | DataCompose): The data composition object.
+        use_Kth_hour_pred (int | None): Use Kth hour prediciton to generate the file path
+            if not None. Else, use the oringal inital time.
         data_source (str): The way generating the path depends on different data sources.
             e.g.
                 "NEO171_RWRF" -> data stored on neo171 server
@@ -163,11 +167,17 @@ def gen_path(
                 / data_compose.basename
             )
         case "CWA_RWRF":
+            predict_dt = (
+                target_time + timedelta(hours=use_Kth_hour_pred)
+                if use_Kth_hour_pred
+                else target_time
+            )
+
             return (
                 Path(DATA_PATH)
                 / f"RWRF_{target_time.strftime('%Y-%m')}"
                 / f"{target_time.strftime('%Y-%m-%d_%H')}"
-                / f"wrfout_d01_{target_time.strftime('%Y-%m-%d_%H')}_interp"
+                / f"wrfout_d01_{predict_dt.strftime('%Y-%m-%d_%H')}_interp"
             )
         case _:
             raise ValueError(f"Invalid data source: {data_source}")

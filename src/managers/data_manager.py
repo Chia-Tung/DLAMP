@@ -37,10 +37,8 @@ class DataManager(L.LightningDataModule):
             kwargs["time_interval"],
         )
         self.data_gnrt = DataGenerator(
-            kwargs["image_lat"],
-            kwargs["image_lon"],
-            kwargs["image_res"],
-            image_shape=kwargs["image_shape"],
+            kwargs["data_shape"],
+            kwargs["image_shape"],
         )
 
         # flags
@@ -69,8 +67,9 @@ class DataManager(L.LightningDataModule):
             log.warning(f'Stage "{stage}" has already been called. Skipping...')
             return
 
+        use_Kth_hour = getattr(self.hparams, "use_Kth_hour_pred", None)
         if not self.dtm.is_done:
-            self.dtm.build_initial_time_list(self.data_list).random_split(
+            self.dtm.build_initial_time_list(self.data_list, use_Kth_hour).random_split(
                 **self.hparams.split_config
             ).build_eval_cases().swap_eval_cases_from_train_valid()
             self.dtm.is_done = True
@@ -130,6 +129,7 @@ class DataManager(L.LightningDataModule):
             self.hparams.sampling_rate,
             ordered_time,
             self.data_list,
+            getattr(self.hparams, "use_Kth_hour_pred", None),
             is_train_or_valid=stage in ["train", "valid"],
         )
 

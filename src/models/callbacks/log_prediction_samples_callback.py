@@ -44,8 +44,8 @@ class LogPredictionSamplesCallback(Callback):
         custom_dataset: CustomDataset = pl_module.test_dataloader().dataset
         data_gnrt: DataGenerator = custom_dataset._data_gnrt
         dc_lat, dc_lon = DataCompose.from_config({"Lat": ["NoRule"], "Lon": ["NoRule"]})
-        self.data_lat = data_gnrt.yield_data(datetime(2022, 10, 1, 0), dc_lat)
-        self.data_lon = data_gnrt.yield_data(datetime(2022, 10, 1, 0), dc_lon)
+        self.data_lat = data_gnrt.yield_data(custom_dataset._init_time_list[0], dc_lat)
+        self.data_lon = data_gnrt.yield_data(custom_dataset._init_time_list[0], dc_lon)
 
         # choose cases from `src.const.EVAL_CASES`
         cases = [datetime(2022, 9, 12)]  # datetime(2022, 10, 16)
