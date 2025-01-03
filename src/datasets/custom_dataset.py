@@ -68,10 +68,7 @@ class CustomDataset(Dataset):
         input_time = self._init_time_list[index]
         input = self._get_variables_from_dt(input_time)
 
-        output_time = input_time + self._oitv
-        output = self._get_variables_from_dt(output_time)
-
-        return input, output
+        return input
 
     def _get_variables_from_dt(self, dt: datetime) -> dict[str, np.ndarray]:
         """

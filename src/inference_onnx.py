@@ -27,10 +27,10 @@ def main(cfg: DictConfig) -> None:
 
     # sample data
     data_loader = data_manager.predict_dataloader()
-    inp_data, oup_data = next(iter(data_loader))
+    inp_data = next(iter(data_loader))
 
     # onnxruntime settings
-    assert "CUDAExecutionProvider" in ort.get_available_providers()
+    # assert "CUDAExecutionProvider" in ort.get_available_providers()
     print(f"ort device: {ort.get_device()}")
 
     # An issue about onnxruntime for cuda12.x

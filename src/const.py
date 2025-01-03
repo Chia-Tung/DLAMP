@@ -4,7 +4,7 @@ import matplotlib as mpl
 import numpy as np
 
 # Constant
-DATA_SOURCE = "CWA_RWRF"
+DATA_SOURCE = "NEO171_RWRF"
 VAR_SUFFIX = "WE01H0202500"
 
 # Path
@@ -13,10 +13,10 @@ CHECKPOINT_DIR = "./checkpoints/"
 LAND_SEA_MASK_PATH = "./assets/constant_masks/land_sea_mask_2km.npy"
 TOPOGRAPHY_MASK_PATH = "./assets/constant_masks/topography_mask_2km.npy"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
-STANDARDIZATION_PATH = "./assets/standardization_complete.json"
-DATA_PATH = "/work/dong1128/rwrf_data/"
+STANDARDIZATION_PATH = "./assets/standardization_partial.json"
+DATA_PATH = "/work/dong1128/rwrf/"
 FIGURE_PATH = "./gallery/"
-DATA_CONFIG_PATH = "./config/data/rwrf_202412.yaml"
+DATA_CONFIG_PATH = "./config/data/rwrf_202409.yaml"
 
 # Radar color bar
 DBZ_LV = np.arange(0, 66, 1)
