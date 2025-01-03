@@ -1,41 +1,19 @@
 from datetime import datetime
 from typing import Callable, Sequence
-from warnings import warn
 
 import numpy as np
 import torch
 from einops.layers.torch import Rearrange
-from scipy.interpolate import LinearNDInterpolator
 from torchvision.transforms.v2 import CenterCrop, Compose, Resize
 
-from .data_compose import DataCompose, DataType, Level
+from .data_compose import DataCompose
 from .file_util import gen_data
 
 
 class DataGenerator:
-    def __init__(
-        self,
-        lat_range: list[float],
-        lon_range: list[float],
-        resolution: float,
-        data_shape: list[int] | None = None,
-        image_shape: list[int] | None = None,
-    ):
-        target_time = datetime(2022, 10, 1, 0)
-        self.data_lat = gen_data(target_time, DataCompose(DataType.Lat, Level.NoRule))
-        self.data_lon = gen_data(target_time, DataCompose(DataType.Lon, Level.NoRule))
-        self.points = np.column_stack((self.data_lat.ravel(), self.data_lon.ravel()))
-        self.target_lat, self.target_lon = self.setup_target_lat_lon(
-            lat_range, lon_range, resolution
-        )
-
-        # shape info
-        self._data_shp = data_shape if data_shape else self.data_lat.shape
-        self._img_shp = image_shape if image_shape else self.target_lat.shape
-
-        # preprocess
-        # WARNING: interpolation is too slow currently. Should be fixed in the future
-        # self.preprocess = self._interp
+    def __init__(self, data_shape: list[int], image_shape: list[int]):
+        self._data_shp = data_shape
+        self._img_shp = image_shape
         self.preprocess = self._preprocess()
 
     def yield_data_hook(fn: Callable) -> Callable:
@@ -133,47 +111,3 @@ class DataGenerator:
         assert (
             data.shape == self._data_shp
         ), f"{target_dt} data shape mismatch: {data.shape} != {self._data_shp}"
-
-    def _interp(self, data: np.ndarray) -> np.ndarray:
-        """
-        Interpolates the given 2D data to the target latitude and longitude using
-        scipy.interpolate.LinearNDInterpolator.
-
-        Args:
-            data (np.ndarray): The 2D data to be interpolated.
-
-        Returns:
-            np.ndarray: The interpolated data.
-        """
-        warn("This function will be removed in the future.", DeprecationWarning)
-        values = data.ravel()
-        interp = LinearNDInterpolator(self.points, values)
-        interpolated_data = interp(self.target_lat, self.target_lon)
-        return interpolated_data
-
-    def setup_target_lat_lon(
-        self,
-        lat_range: list[float],
-        lon_range: list[float],
-        resolution: float,
-        epsilon: float = 1e-5,
-    ):
-        """
-        Set up the target latitude and longitude arrays for interpolation.
-
-        Args:
-            lat_range (list[float]): The range of target latitudes.
-            lon_range (list[float]): The range of target longitudes.
-            resolution (float): The resolution of the target latitudes and longitudes.
-            epsilon (float, optional): A small value to be added to the upper limit of
-                the range to ensure that the upper limit is included. Defaults to 1e-5.
-
-        Returns:
-            tuple[np.ndarray, np.ndarray]: A tuple of two 2D arrays: the first is the
-                target latitude array, and the second is the target longitude array.
-        """
-        warn("This function will be removed in the future.", DeprecationWarning)
-        lat = np.arange(lat_range[0], lat_range[1] + epsilon, resolution)
-        lon = np.arange(lon_range[0], lon_range[1] + epsilon, resolution)
-        lon_mesh, lat_mesh = np.meshgrid(lon, lat)
-        return lat_mesh, lon_mesh

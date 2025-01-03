@@ -5,9 +5,6 @@ time_interval:
   hours: 1
 data_shape: [450, 450]
 image_shape: [224, 224]
-image_lat: [19.75, 27.75] # only used for plotting
-image_lon: [116.5, 125] # only used for plotting
-image_res: 0.04 # not used
 train_data:
   Z:
     - Hpa200

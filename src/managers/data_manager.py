@@ -37,10 +37,8 @@ class DataManager(L.LightningDataModule):
             kwargs["time_interval"],
         )
         self.data_gnrt = DataGenerator(
-            kwargs["image_lat"],
-            kwargs["image_lon"],
-            kwargs["image_res"],
-            image_shape=kwargs["image_shape"],
+            kwargs["data_shape"],
+            kwargs["image_shape"],
         )
 
         # flags

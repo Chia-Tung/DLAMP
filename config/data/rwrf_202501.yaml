@@ -5,9 +5,6 @@ time_interval:
   hours: 1
 data_shape: [450, 450]
 image_shape: [224, 224]
-image_lat: [19.75, 27.75] # only used for plotting
-image_lon: [116.5, 125] # only used for plotting
-image_res: 0.04 # not used
 use_Kth_hour_pred: 3
 train_data:
   Z:
@@ -202,3 +199,7 @@ train_data:
     - Surface
   PW:
     - Surface
+  SWDOWN:
+    - Surface
+  OLR:
+    - NoRule
