@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 
 import hydra
 import onnxruntime as ort
@@ -6,11 +7,11 @@ import psutil
 from omegaconf import DictConfig, OmegaConf
 
 from src.managers import DataManager
+from src.standardization import destandardization
 from src.utils import DataCompose
 
 """
 This is a sample code for quickly inference onnx model.
-Should be merged into `./inference/`.
 """
 
 
@@ -19,12 +20,13 @@ def main(cfg: DictConfig) -> None:
     OmegaConf.set_struct(cfg, True)
 
     # prepare data
+    eval_cases = [datetime(2022, 9, 11)]
     data_list = DataCompose.from_config(cfg.data.train_data)
-    data_manager = DataManager(data_list, **cfg.data, **cfg.lightning)
-    data_manager.setup("fit")
+    data_manager = DataManager(data_list, eval_cases, **cfg.data, **cfg.lightning)
+    data_manager.setup("predict")
 
     # sample data
-    data_loader = data_manager.train_dataloader()
+    data_loader = data_manager.predict_dataloader()
     inp_data, oup_data = next(iter(data_loader))
 
     # onnxruntime settings
@@ -43,7 +45,7 @@ def main(cfg: DictConfig) -> None:
     ort.capi._pybind_state.get_default_session_options = get_default_session_options_new
 
     # inference
-    onnx_filename = "./export/Pangu_model.onnx"
+    onnx_filename = cfg.inference.onnx_path
     sess_options = ort.SessionOptions()
     sess_options.intra_op_num_threads = psutil.cpu_count(logical=True)  # faster
     ort_session = ort.InferenceSession(
@@ -57,6 +59,8 @@ def main(cfg: DictConfig) -> None:
     }
     start = time.time()
     pred_upper, pred_surface = ort_session.run(None, ort_inputs)
+    pred_upper = destandardization(pred_upper)
+    pred_surface = destandardization(pred_surface)
     print(type(pred_upper), pred_upper.shape, pred_surface.shape)
     print(f"execution time: {time.time() - start:.5f} sec")
 
