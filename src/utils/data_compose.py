@@ -37,7 +37,7 @@ class DataCompose:
         self.is_radar = self.var_name == DataType.Radar
 
     def __str__(self) -> str:
-        return f"{self.var_name.value}@{self.level.value}"
+        return f"{self.var_name.name}@{self.level.name}"
 
     @staticmethod
     def retrive_var_level_from_string(sentence: str) -> tuple[DataType, Level]:

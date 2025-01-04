@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from ..const import STANDARDIZATION_PATH
-from ..utils import DataCompose, DataGenerator
+from ..utils import DataCompose, DataGenerator, Level, TimeUtil
 
 
 class CustomDataset(Dataset):
@@ -104,7 +104,10 @@ class CustomDataset(Dataset):
                 stat = self.stat_dict[var_level_str]
                 data = (data - stat["mean"]) / stat["std"]
             _, level = DataCompose.retrive_var_level_from_string(var_level_str)
-            pre_output[level].append(data)
+            if level.is_surface():
+                pre_output[Level.Surface].append(data)
+            else:
+                pre_output[level].append(data)
 
         # concatenate by variable, group by level
         output = defaultdict(list)
@@ -120,10 +123,13 @@ class CustomDataset(Dataset):
         # Warning: LightningModule doesn't support defaultdict as input/output
         final = {}
         for key, value in output.items():
+            stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+
             if key == "surface":
-                stack_data = np.concatenate(value, axis=2)[None]  # (1, h, w, c)
-            else:
-                stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+                # add DoY and ToD (1, h, w, c+4)
+                time_features = TimeUtil.create_time_features(dt, stack_data.shape[1:3])
+                stack_data = np.concatenate([stack_data, time_features[None]], axis=-1)
+
             final[key] = stack_data  # {'upper_air': (lv, h, w, c), ...}
 
         return final
