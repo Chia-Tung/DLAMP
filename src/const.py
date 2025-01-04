@@ -272,6 +272,7 @@ EVAL_CASES = {
         datetime(2022, 8, 25),  # ATS
     ],
     "three_days": [
+        datetime(2020, 5, 21),  # Meiyu
         datetime(2021, 8, 7),  # South-western flow + Tropical Depression
         datetime(2021, 8, 8),  # South-western flow
         datetime(2023, 4, 20),  # cold front
@@ -290,7 +291,7 @@ EVAL_CASES = {
         # datetime(2023, 7, 26),  # TC DOKSURI
         # == landing == #
         # datetime(2023, 9, 3),  # TC HAIKUI
-        # datetime(2024, 7, 24),  # TC GAEMI
+        datetime(2024, 7, 24),  # TC GAEMI
         datetime(2024, 10, 31),  # TC Kong-rey
     ],
     "seven_days": [
