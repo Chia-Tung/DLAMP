@@ -1,11 +1,12 @@
-import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import joblib
 import numpy as np
 import torch
 import torch.nn.functional as F
+from sklearn.preprocessing import QuantileTransformer
 from torch.utils.data import Dataset
 
 from ..const import STANDARDIZATION_PATH
@@ -37,8 +38,7 @@ class CustomDataset(Dataset):
         self._is_train_or_valid = is_train_or_valid
 
         if Path(STANDARDIZATION_PATH).exists():
-            with open(STANDARDIZATION_PATH, "r") as f:
-                self.stat_dict: dict = json.load(f)
+            self.stat_dict = joblib.load(STANDARDIZATION_PATH)
         else:
             self.stat_dict = {}
 
@@ -101,8 +101,9 @@ class CustomDataset(Dataset):
                 "Cloud Water Mixing Ratio@100 Hpa",
                 "Cloud Water Mixing Ratio@200 Hpa",
             ]:
-                stat = self.stat_dict[var_level_str]
-                data = (data - stat["mean"]) / stat["std"]
+                H, W = data.shape
+                qt: QuantileTransformer = self.stat_dict[var_level_str]
+                data = qt.transform(data.reshape(-1, 1)).reshape(H, W)
             _, level = DataCompose.retrive_var_level_from_string(var_level_str)
             if level.is_surface():
                 pre_output[Level.Surface].append(data)

@@ -129,10 +129,10 @@ def extract_landmask_from_ncfile():
     landsea = dataset["LANDMASK"].values.squeeze()
     assert tuple(data_shape) == terrain.shape == landsea.shape
 
-    offset_x = (data_shape[0] - img_shape[0]) // 2
-    offset_y = (data_shape[1] - img_shape[1]) // 2
-    terrain_mask = terrain[offset_x:-offset_x, offset_y:-offset_y]
-    landsea_mask = landsea[offset_x:-offset_x, offset_y:-offset_y]
+    terrain = terrain[1:-1, 1:-1]  # (448, 448)
+    landsea = landsea[1:-1, 1:-1]  # (448, 448)
+    terrain_mask = terrain[::2, ::2]  # (224, 224)
+    landsea_mask = landsea[::2, ::2]  # (224, 224)
     assert tuple(img_shape) == terrain_mask.shape == landsea_mask.shape
 
     # save npy

@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -167,7 +166,7 @@ def _destandardize(
 
 def destandardize_array(array: np.ndarray, qt: QuantileTransformer) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
-    reshaped_array = array.reshape(-1, array.shape[-1])
+    reshaped_array = array.reshape(-1, 1)
     return qt.inverse_transform(reshaped_array).reshape(array.shape)
 
 
