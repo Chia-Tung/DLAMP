@@ -19,9 +19,9 @@ lightning:
   workers: 4
 
 defaults:
-  - data: rwrf_202412
-  - lightning: pangu_rwrf_202409
-  - model: pangu_rwrf_202412
+  - data: rwrf_202501
+  - lightning: pangu_rwrf_202501
+  - model: pangu_rwrf_202501
   - inference: pangu_rwrf_onnx
   - plot: pangu_rwrf
   - _self_
