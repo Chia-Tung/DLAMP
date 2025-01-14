@@ -1,21 +1,28 @@
+import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import joblib
 import numpy as np
 import yaml
-from sklearn.preprocessing import QuantileTransformer
 from tqdm import tqdm
 
-from .const import DATA_CONFIG_PATH, STANDARDIZATION_PATH
+from .const import BLACKLIST_PATH, DATA_CONFIG_PATH, STANDARDIZATION_PATH
 from .utils import DataCompose, DataGenerator, DataType, gen_path
+
+# load already calculated mean and standard deviation
+if Path(STANDARDIZATION_PATH).exists():
+    with open(STANDARDIZATION_PATH, "r") as f:
+        stat_dict: dict = json.load(f)
+else:
+    stat_dict = {}
 
 
 def calc_standardization(
     start_time: datetime = datetime(2021, 1, 1),
-    end_time: datetime = datetime(2023, 12, 31),
-    random_num: int = 100,
+    end_time: datetime = datetime(2022, 12, 31),
+    sample_size: int = 100,
+    threshold: int = 1000,
 ) -> None:
     """
     calculates the mean and standard deviation from a dataset within a specified time range.
@@ -28,16 +35,27 @@ def calc_standardization(
     with open(DATA_CONFIG_PATH, "r") as stream:
         data_config = yaml.safe_load(stream)
 
-    # load already calculated mean and standard deviation
-    if Path(STANDARDIZATION_PATH).exists():
-        stat_dict_already = joblib.load(STANDARDIZATION_PATH)
-    else:
-        stat_dict_already = {}
+    # load blacklist
+    with open(BLACKLIST_PATH, "r") as f:
+        blacklist = [
+            datetime.strptime(line.strip(), "%Y-%m-%d %H:%M")
+            for line in f
+            if line.strip()  # Skip empty lines
+        ]
 
     # data generator
     data_list = DataCompose.from_config(data_config["train_data"])
     data_gnrt = DataGenerator(data_config["data_shape"], data_config["image_shape"])
-    use_Kth_hour_pred = getattr(data_config, "use_Kth_hour_pred", None)
+    use_Kth_hour_pred = (
+        data_config["use_Kth_hour_pred"] if "use_Kth_hour_pred" in data_config else None
+    )
+
+    def _progress_one_step(dt, month_cnt):
+        dt += timedelta(hours=8)
+        if (dt - start_time) / timedelta(days=30) > month_cnt:
+            month_cnt += 1
+            logging.info(f"now is processing {dt}")
+        return dt, month_cnt
 
     for data_compose in tqdm(data_list):
         dt = start_time
@@ -45,21 +63,24 @@ def calc_standardization(
         container = []
         logging.info(f"start executing {data_compose}")
 
-        if str(data_compose) in stat_dict_already:
+        if str(data_compose) in stat_dict:
             logging.info(
                 f"skip {data_compose} because it already exists in {STANDARDIZATION_PATH}"
             )
             continue
 
         while dt < end_time:
-            if gen_path(dt, data_compose, use_Kth_hour_pred).exists():
-                data = data_gnrt.yield_data(
+            if (
+                gen_path(dt, data_compose, use_Kth_hour_pred).exists()
+                and dt not in blacklist
+            ):
+                data: np.ndarray = data_gnrt.yield_data(
                     dt, data_compose, use_Kth_hour_pred=use_Kth_hour_pred
                 )
+
                 # random pick values from data
                 indices = np.arange(data.size)
-                chosen_indices = np.random.choice(indices, random_num, replace=False)
-                # Convert the flat indices to 2D indices
+                chosen_indices = np.random.choice(indices, sample_size, replace=False)
                 rows, cols = np.unravel_index(chosen_indices, data.shape)
                 random_values = data[rows, cols]
 
@@ -67,14 +88,12 @@ def calc_standardization(
                     data_compose.var_name == DataType.SWDOWN
                     and np.mean(random_values) == 0
                 ):
+                    dt, month_cnt = _progress_one_step(dt, month_cnt)
                     continue
 
                 container.append(random_values)
 
-            dt += timedelta(hours=8)
-            if (dt - start_time) / timedelta(days=30) > month_cnt:
-                month_cnt += 1
-                logging.info(f"now is processing {dt}")
+            dt, month_cnt = _progress_one_step(dt, month_cnt)
 
         # clip values to 10-90 percentile range
         all_data = np.stack(container).flatten()
@@ -82,15 +101,31 @@ def calc_standardization(
         upper_bound = np.percentile(all_data, 90)
         filtered_data = all_data[(all_data > lower_bound) & (all_data < upper_bound)]
 
-        # apply quantile transform to the filtered data
-        n_quantiles = min(len(filtered_data), 1000)
-        qt = QuantileTransformer(
-            n_quantiles=n_quantiles, output_distribution="normal", copy=True
-        )
-        qt.fit(filtered_data.reshape(-1, 1))
-        stat_dict_already[str(data_compose)] = qt
+        if len(filtered_data) < threshold:
+            logging.info(
+                f"skip {data_compose} because data sample {len(filtered_data)} is not enough"
+            )
+            continue
 
-    joblib.dump(stat_dict_already, STANDARDIZATION_PATH)
+        stat_dict[str(data_compose)] = {
+            "mean": float(np.mean(filtered_data)),
+            "std": float(np.std(filtered_data)),
+        }
+
+        # write into json file
+        with open(STANDARDIZATION_PATH, "w") as f:
+            json.dump(stat_dict, f, indent=4)
+
+
+def standardization(dc_name: str, array: np.ndarray) -> np.ndarray:
+    if dc_name in stat_dict:
+        stat = stat_dict[dc_name]
+        if stat["mean"] < 1e-5:
+            return array
+        else:
+            return (array - stat["mean"]) / stat["std"]
+    else:
+        return np.zeros_like(array)  # force to be zero if no standardization
 
 
 def destandardization(array: np.ndarray) -> np.ndarray:
@@ -104,9 +139,6 @@ def destandardization(array: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: The destandardized data with shape (lv, H, W, C) or (B, lv, H, W, C).
     """
-    # load standardization value
-    stat_dict_already = joblib.load(STANDARDIZATION_PATH)
-
     # load config
     with open(DATA_CONFIG_PATH, "r") as stream:
         data_config = yaml.safe_load(stream)
@@ -118,18 +150,17 @@ def destandardization(array: np.ndarray) -> np.ndarray:
         raise ValueError(f"Expected 4D or 5D array, got {num_array_dim}D")
 
     is_surface = array.shape[1 if num_array_dim == 5 else 0] == 1
-    return _destandardize(array, data_list, stat_dict_already, is_surface)
+    return _destandardize(array, data_list, is_surface)
 
 
 def _destandardize(
-    array: np.ndarray, data_list: list[DataCompose], stat_dict: dict, is_sfc: bool
+    array: np.ndarray, data_list: list[DataCompose], is_sfc: bool
 ) -> np.ndarray:
     """Handle destandardization for surface or upper-level variables.
 
     Args:
         array: Input array with shape (lv, H, W, C) or (B, lv, H, W, C)
         data_list: List of DataCompose objects
-        stat_dict: Dictionary containing standardization statistics
         is_sfc: Boolean indicating if processing surface level data
 
     Returns:
@@ -148,26 +179,28 @@ def _destandardize(
 
     # Process each data composition
     for dc in filtered_dc:
-        qt = stat_dict[str(dc)]
+        if str(dc) not in stat_dict:
+            continue
+
+        stat = stat_dict[str(dc)]
         lv_idx = 0 if is_sfc else levels.index(dc.level)
         var_idx = variables.index(dc.var_name)
 
         if len(array.shape) == 5:
             new_array[:, lv_idx, :, :, var_idx] = destandardize_array(
-                array[:, lv_idx, :, :, var_idx], qt
+                array[:, lv_idx, :, :, var_idx], stat
             )
         else:
             new_array[lv_idx, :, :, var_idx] = destandardize_array(
-                array[lv_idx, :, :, var_idx], qt
+                array[lv_idx, :, :, var_idx], stat
             )
 
     return new_array
 
 
-def destandardize_array(array: np.ndarray, qt: QuantileTransformer) -> np.ndarray:
+def destandardize_array(array: np.ndarray, stat: dict[str, float]) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
-    reshaped_array = array.reshape(-1, 1)
-    return qt.inverse_transform(reshaped_array).reshape(array.shape)
+    return array * stat["std"] + stat["mean"]
 
 
 if __name__ == "__main__":

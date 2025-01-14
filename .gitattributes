@@ -2,4 +2,5 @@ assets/demo/** filter=lfs diff=lfs merge=lfs -text
 assets/town_shp/** filter=lfs diff=lfs merge=lfs -text
 assets/terrain_shp/** filter=lfs diff=lfs merge=lfs -text
 assets/constant_masks/** filter=lfs diff=lfs merge=lfs -text
+assets/standardization/** filter=lfs diff=lfs merge=lfs -text
 export/*.onnx filter=lfs diff=lfs merge=lfs -text

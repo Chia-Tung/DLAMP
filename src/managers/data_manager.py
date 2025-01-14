@@ -129,6 +129,7 @@ class DataManager(L.LightningDataModule):
             self.hparams.sampling_rate,
             ordered_time,
             self.data_list,
+            self.hparams.add_time_features,
             getattr(self.hparams, "use_Kth_hour_pred", None),
             is_train_or_valid=stage in ["train", "valid"],
         )

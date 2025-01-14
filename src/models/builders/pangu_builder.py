@@ -43,13 +43,19 @@ class PanguBuilder(BaseBuilder):
         self.info_log(f"Window Size: {self.kwargs.window_size}")
 
     def _backbone_model(self) -> nn.Module:
+        sfc_input_ch = (
+            len(self.surface_vars) + 4
+            if self.kwargs.add_time_features
+            else len(self.surface_vars)
+        )
         return PanguModel(
             image_shape=self.kwargs.image_shape,
             patch_size=self.kwargs.patch_size,
             window_size=self.kwargs.window_size,
             upper_levels=len(self.pressure_levels),
             upper_channels=len(self.upper_vars),
-            surface_channels=len(self.surface_vars),
+            surface_input_channels=sfc_input_ch,
+            surface_output_channels=len(self.surface_vars),
             embed_dim=self.kwargs.embed_dim,
             heads=self.kwargs.heads,
             depths=self.kwargs.depths,

@@ -115,7 +115,7 @@ class VizPressure(TwBackground):
             lat,
             data,
             cmap="viridis",
-            levels=np.linspace(870, 1010, 36),
+            levels=np.arange(870, 1015, 5),
             zorder=0,
             extend="both",
         )
