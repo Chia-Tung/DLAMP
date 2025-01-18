@@ -46,16 +46,15 @@ class PanguModel(nn.Module):
         smoothing_kernel_size: int | None = None,
         segmented_smooth_boundary_width: int | None = None,
     ) -> None:
-        assert len(depths) == 2  # only two layers allowed
         assert len(heads) == len(depths)
         super().__init__()
 
-        hierarchy = len(depths)
+        self.hierarchy = len(depths)
         image_shape = [upper_levels] + image_shape
         inp_Z, inp_H, inp_W = [ceil(x / y) for x, y in zip(image_shape, patch_size)]
         inp_Z += 1  # surface
         drop_path_list = np.linspace(0, max_drop_path_ratio, sum(depths)).tolist()
-        embed_dim = [(2**i) * embed_dim for i in range(hierarchy)]
+        embed_dim = [(2**i) * embed_dim for i in range(self.hierarchy)]
 
         if smoothing_kernel_size is None:
             self.smoothing_layer = Identity()
@@ -100,7 +99,14 @@ class PanguModel(nn.Module):
                 ),
             )
 
-        self.downsample = DownSample(inp_shape=(inp_Z, inp_H, inp_W), dim=embed_dim[0])
+            if i < self.hierarchy - 1:
+                self.__setattr__(
+                    "downsample{}".format(i + 1),
+                    DownSample(
+                        inp_shape=(inp_Z, ceil(inp_H / (2**i)), ceil(inp_W / (2**i))),
+                        dim=embed_dim[i],
+                    ),
+                )
 
         # ===== Right Side of Unet =====#
         self.patch_recover = PatchRecovery(
@@ -109,14 +115,14 @@ class PanguModel(nn.Module):
             patch_size=patch_size,
             upper_channels=upper_channels,
             surface_channels=surface_output_channels,
-            dim=embed_dim[1],  # skip connection
+            dim=embed_dim[0],
         )
 
         for i, depth in enumerate(reversed(depths), start=1):
-            j = hierarchy - i  # reversed index
+            j = self.hierarchy - i  # reversed index
             slice_range = slice(sum(depths[:j]), sum(depths[: j + 1]))
             self.__setattr__(
-                "layer{}".format(i + hierarchy),
+                "layer{}".format(i + self.hierarchy),
                 EarthSpecificLayer(
                     input_shape=(inp_Z, ceil(inp_H / (2**j)), ceil(inp_W / (2**j))),
                     dim=embed_dim[j],
@@ -125,10 +131,18 @@ class PanguModel(nn.Module):
                     drop_path_ratio_list=drop_path_list[slice_range],
                     dropout_rate=dropout_rate,
                     window_size=window_size,
+                    skip_concat=False if i == 1 else True,
                 ),
             )
 
-        self.upsample = UpSample(oup_shape=(inp_Z, inp_H, inp_W), oup_dim=embed_dim[0])
+            if i < self.hierarchy:
+                self.__setattr__(
+                    "upsample{}".format(i + self.hierarchy),
+                    UpSample(
+                        inp_shape=(inp_Z, ceil(inp_H / (2**j)), ceil(inp_W / (2**j))),
+                        dim=embed_dim[j],
+                    ),
+                )
 
     def forward(
         self, input_upper: torch.Tensor, input_surface: torch.Tensor
@@ -142,17 +156,32 @@ class PanguModel(nn.Module):
         Returns:
             tuple[torch.Tensor, torch.Tensor]: Tuple of upper-air data and surface data.
         """
-        # left side
+        # Initial embedding
         x = self.patch_embed(input_upper, input_surface)
-        x = self.layer1(x)
-        skip = x
-        x = self.downsample(x)
-        x = self.layer2(x)
-        # right side
-        x = self.layer3(x)
-        x = self.upsample(x)
-        x = self.layer4(x)
-        x = torch.cat([skip, x], dim=-1)
+
+        # Store skip connections
+        skip_connections = []
+
+        # Encoder (left side)
+        for i in range(self.hierarchy - 1):
+            x = getattr(self, f"layer{i + 1}")(x)
+            skip_connections.append(x)
+            x = getattr(self, f"downsample{i + 1}")(x)
+
+        # Bottleneck
+        x = getattr(self, f"layer{self.hierarchy}")(x)
+
+        # Decoder (right side)
+        for i in range(self.hierarchy - 1):
+            layer_idx = self.hierarchy + i + 1
+            x = getattr(self, f"layer{layer_idx}")(x)
+            x = getattr(self, f"upsample{layer_idx}")(x)
+            x = torch.cat([skip_connections.pop(), x], dim=-1)
+
+        # Final layer
+        x = getattr(self, f"layer{2 * self.hierarchy}")(x)
+
+        # Recovery and smoothing
         output_upper, output_surface = self.patch_recover(x)
         output_upper, output_surface = self.smoothing_layer(
             output_upper, output_surface
@@ -418,36 +447,41 @@ class DownSample(nn.Module):
 
 
 class UpSample(nn.Module):
-    def __init__(self, oup_shape: tuple[int, int, int], oup_dim: int):
+    def __init__(self, inp_shape: tuple[int, int, int], dim: int):
         """
         Increases the lateral resolution by a factor of 2.
 
         Args:
-            oup_shape (tuple[int, int, int]): Shape of the output tensor (inp_Z, inp_H, inp_W).
-            oup_dim (int): Number of input channels AFTER the upsampling.
+            inp_shape (tuple[int, int, int]): Shape of the input tensor (inp_Z, inp_H, inp_W).
+            dim (int): Number of input channels BEFORE the upsampling.
         """
         super().__init__()
-        self.linear1 = nn.Linear(2 * oup_dim, 4 * oup_dim, bias=False)
-        self.linear2 = nn.Linear(oup_dim, oup_dim, bias=False)
-        self.norm = nn.LayerNorm(oup_dim)
-        self.oup_shape = oup_shape
+        self.linear1 = nn.Linear(dim, 2 * dim, bias=False)
+        self.linear2 = nn.Linear(dim // 2, dim // 2, bias=False)
+        self.norm = nn.LayerNorm(dim // 2)
+        self.inp_shape = inp_shape
+
+        # Calculate output shape dimensions
+        out_H = inp_shape[1] * 2
+        out_W = inp_shape[2] * 2
 
         # Rollback to the original resolution without padding
-        self.crop = crop_pad_2d(oup_shape[1:], (2, 2))
+        self.crop = crop_pad_2d((out_H, out_W), (2, 2))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x (torch.Tensor): Tensor of shape (B, inp_Z*inp_H/2*inp_W/2, 2*dim).
+            x (torch.Tensor): Tensor of shape (B, inp_Z*inp_H*inp_W, dim).
         Returns:
-            torch.Tensor: Tensor of shape (B, inp_Z*inp_H*inp_W, dim).
+            torch.Tensor: Tensor of shape (B, inp_Z*inp_H*2*inp_W*2, dim/2).
         """
         x = self.linear1(x)
         x = rearrange(
             x,
             "b (z hh ww) (n1 n2 c) -> b z (hh n1) (ww n2) c",
-            hh=ceil(self.oup_shape[1] / 2),
-            ww=ceil(self.oup_shape[2] / 2),
+            z=self.inp_shape[0],
+            hh=self.inp_shape[1],
+            ww=self.inp_shape[2],
             n1=2,
             n2=2,
         )
