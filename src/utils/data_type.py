@@ -24,6 +24,7 @@ class DataType(Enum):
     Qg = ("Graupel Mixing Ratio", "", "QGRAUP_p")
     Qc = ("Cloud Water Mixing Ratio", "", "QCLOUD_p")
     Qi = ("Ice Mixing Ratio", "", "QICE_p")
+    Qw = ("Water Mixing Ratio", "", "")
     RH = ("Relative Humidity", "", "rh")
     Td = ("Dew Point Temperature", "", "td")
     SLP = ("Sea Level Pressure", "", "slp")

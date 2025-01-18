@@ -5,6 +5,7 @@ time_interval:
   hours: 1
 data_shape: [450, 450]
 image_shape: [224, 224]
+add_time_features: False
 train_data:
   Z:
     - Hpa200

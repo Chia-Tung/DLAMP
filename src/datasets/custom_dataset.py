@@ -1,15 +1,13 @@
-import json
 from collections import defaultdict
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
-from ..const import STANDARDIZATION_PATH
-from ..utils import DataCompose, DataGenerator
+from ..standardization import standardization
+from ..utils import DataCompose, DataGenerator, Level, TimeUtil
 
 
 class CustomDataset(Dataset):
@@ -22,6 +20,7 @@ class CustomDataset(Dataset):
         sampling_rate: int,
         init_time_list: list[datetime],
         data_list: list[DataCompose],
+        add_time_features: bool,
         use_Kth_hour_pred: int | None,
         is_train_or_valid: bool,
     ):
@@ -33,14 +32,9 @@ class CustomDataset(Dataset):
         self._sr = sampling_rate
         self._init_time_list = init_time_list
         self._data_list = data_list
+        self.add_time_features = add_time_features
         self.use_Kth_hour_pred = use_Kth_hour_pred
         self._is_train_or_valid = is_train_or_valid
-
-        if Path(STANDARDIZATION_PATH).exists():
-            with open(STANDARDIZATION_PATH, "r") as f:
-                self.stat_dict: dict = json.load(f)
-        else:
-            self.stat_dict = {}
 
     def __len__(self):
         """
@@ -66,19 +60,22 @@ class CustomDataset(Dataset):
         if self._is_train_or_valid:
             index *= self._sr
         input_time = self._init_time_list[index]
-        input = self._get_variables_from_dt(input_time)
+        input = self._get_variables_from_dt(input_time, is_input=True)
 
         output_time = input_time + self._oitv
-        output = self._get_variables_from_dt(output_time)
+        output = self._get_variables_from_dt(output_time, is_input=False)
 
         return input, output
 
-    def _get_variables_from_dt(self, dt: datetime) -> dict[str, np.ndarray]:
+    def _get_variables_from_dt(
+        self, dt: datetime, is_input: bool
+    ) -> dict[str, np.ndarray]:
         """
         Retrieves data from a given datetime object.
 
         Parameters:
             dt (datetime): The datetime object to retrieve variables from.
+            is_input: If True, it's possible to prepare the datetime features.
 
         Returns:
             dict: A dictionary containing the variables retrieved from the datetime object.
@@ -97,14 +94,12 @@ class CustomDataset(Dataset):
             dt, self._data_list, use_Kth_hour_pred=self.use_Kth_hour_pred
         )
         for var_level_str, data in data_dict.items():
-            if var_level_str in self.stat_dict and var_level_str not in [
-                "Cloud Water Mixing Ratio@100 Hpa",
-                "Cloud Water Mixing Ratio@200 Hpa",
-            ]:
-                stat = self.stat_dict[var_level_str]
-                data = (data - stat["mean"]) / stat["std"]
+            data = standardization(var_level_str, data)
             _, level = DataCompose.retrive_var_level_from_string(var_level_str)
-            pre_output[level].append(data)
+            if level.is_surface():
+                pre_output[Level.Surface].append(data)
+            else:
+                pre_output[level].append(data)
 
         # concatenate by variable, group by level
         output = defaultdict(list)
@@ -120,10 +115,13 @@ class CustomDataset(Dataset):
         # Warning: LightningModule doesn't support defaultdict as input/output
         final = {}
         for key, value in output.items():
-            if key == "surface":
-                stack_data = np.concatenate(value, axis=2)[None]  # (1, h, w, c)
-            else:
-                stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+            stack_data = np.stack(value, axis=0)  # (lv, h, w, c)
+
+            if is_input and key == "surface" and self.add_time_features:
+                # add DoY and ToD (1, h, w, c+4)
+                time_features = TimeUtil.create_time_features(dt, stack_data.shape[1:3])
+                stack_data = np.concatenate([stack_data, time_features[None]], axis=-1)
+
             final[key] = stack_data  # {'upper_air': (lv, h, w, c), ...}
 
         return final

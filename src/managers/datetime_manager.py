@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -136,34 +137,43 @@ class DatetimeManager:
         log.debug(f"{self.BC} Built initial time list in {time.time() - s:.5f} sec.")
 
     def random_split(
-        self, order_by_time: bool, ratios: list[float | int]
+        self, ratios: list[float | int], split_method: str = "random"
     ) -> DatetimeManager:
         """
-        Splits the data into training, validation, and testing sets randomly or sequentially.
-
-        Two split strategies:
-        1. sequentially sample (order by time)
-        2. random shuffle (not order by time)
+        Split the time list into train, validation and test sets based on specified ratios and method.
 
         Args:
-            order_by_time (bool): If True, the data is split sequentially based on time. If False, the data is shuffled randomly.
-            ratios (list[float | int]): A list of three values representing the ratios of the data to be allocated for training, validation, and testing respectively.
+            ratios (list[float | int]): List of 3 numbers specifying the ratio split between
+                train, validation and test sets. Will be normalized to sum to 1.
+            split_method (str, optional): Method to use for splitting. Options are:
+                - "random": Randomly shuffle and split based on ratios
+                - "sequential": Split sequentially in chunks based on ratios
+                - "half_month": Split by half-month periods, e.g. 1/1-1/15, 1/16-1/30.
+                Defaults to "random".
 
         Returns:
-            DatetimeManager: The updated DatetimeManager object with the split data.
+            DatetimeManager: Returns self for method chaining.
         """
         s = time.time()
         assert (
             len(ratios) == 3
         ), f"ratios should be [train_r, valid_r, test_r], but {ratios}"
-        # summation = 1
+
         ratios = np.array(ratios) / np.array(ratios).sum()
 
-        time_list_array = self.time_list
-        if order_by_time:
+        time_list = self.time_list.copy()
+        if split_method == "random":
+            random.seed(1000)
+            random.shuffle(time_list)
+            ratios *= len(time_list)
+            for category, category_idx in {"train": 0, "valid": 1, "test": 2}.items():
+                start_idx = np.sum(ratios[:category_idx], dtype=int)
+                end_idx = np.sum(ratios[: category_idx + 1], dtype=int)
+                self.__setattr__(f"{category}_time", set(time_list[start_idx:end_idx]))
+        elif split_method == "sequential":
             ratios = np.round(ratios * 10).astype(int)
             chunk_size = ratios.sum()
-            time_list_array = np.array(time_list_array)
+            time_list_array = np.array(time_list)
             for i in range(chunk_size):
                 tmp = time_list_array[i::chunk_size]
                 if i < ratios[0]:
@@ -172,16 +182,30 @@ class DatetimeManager:
                     self.test_time.update(tmp)
                 else:
                     self.valid_time.update(tmp)
-        else:
+        elif split_method == "half_month":
+            # Group datetimes by half-month periods
+            half_month_groups = defaultdict(list)
+            for dt in time_list:
+                half = "1st_half" if dt.day <= 15 else "2nd_half"
+                group_key = f"{dt.strftime('%b')}_{half}"  # e.g. "Jan_1st_half"
+                half_month_groups[group_key].append(dt)
+
+            # Randomly shuffle groups
+            groups = list(half_month_groups.values())
             random.seed(1000)
-            random.shuffle(time_list_array)
-            ratios *= len(time_list_array)
-            for category, category_idx in {"train": 0, "valid": 1, "test": 2}.items():
-                start_idx = np.sum(ratios[:category_idx], dtype=int)
-                end_idx = np.sum(ratios[: category_idx + 1], dtype=int)
-                self.__setattr__(
-                    f"{category}_time", set(time_list_array[start_idx:end_idx])
-                )
+            random.shuffle(groups)
+            num_groups = len(groups)
+            train_end = int(num_groups * ratios[0])
+            valid_end = int(num_groups * (ratios[0] + ratios[1]))
+
+            # Assign groups to splits
+            for i, group in enumerate(groups):
+                if i < train_end:
+                    self.train_time.update(group)
+                elif i < valid_end:
+                    self.valid_time.update(group)
+                else:
+                    self.test_time.update(group)
 
         log.debug(f"{self.BC} Split data in {time.time() - s:.5f} sec.")
         log.debug(f"train_time size (original): {len(self.train_time)}")
@@ -270,6 +294,7 @@ class DatetimeManager:
         Returns:
             DatetimeManager: The updated DatetimeManager object after swapping the evaluation cases.
         """
+        no_swap: bool = len(self.test_time) == 0
 
         def fn(name: str) -> None:
             dataset = getattr(self, f"{name}_time")
@@ -278,6 +303,9 @@ class DatetimeManager:
             for dt in clashes:
                 dataset.remove(dt)
                 self.test_time.add(dt)
+
+                if no_swap:
+                    continue
                 while True:
                     swap_dt = random.choice(list(self.test_time))
                     if swap_dt not in self.eval_cases:

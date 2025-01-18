@@ -82,13 +82,24 @@ def read_cwa_ncfile(
                 For pressure level variables, extracts the specified level and returns shape (H, W).
                 H and W are the horizontal dimensions of the data.
         """
-        pres_lvs = dataset[DataType.P.nc_key].values
-        data = dataset[dc.combined_key].values.squeeze()  # (Z, H, W)
+        if dc.var_name == DataType.Qw:
+            # Qw = Qr + Qc + Qi + Qs + Qg
+            components = ["Qr", "Qc", "Qi", "Qs", "Qg"]
+            data = sum(
+                dataset[DataCompose(getattr(DataType, q), dc.level).combined_key].values
+                for q in components
+            )  # (1, Z, H, W)
+        else:
+            data = dataset[dc.combined_key].values  # (1, H, W)
+
         data = data.astype(dtype) if dtype is not None else data
-        if not dc.level.is_surface():
+
+        if dc.level.is_surface():
+            return data[0]
+        else:
+            pres_lvs = dataset[DataType.P.nc_key].values
             (idx,) = np.where(pres_lvs == float(dc.level.nc_key))
-            data = data[idx[0]]
-        return data  # (H, W)
+            return data[0, idx[0]]
 
     try:
         if isinstance(data_compose, DataCompose):

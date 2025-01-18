@@ -37,13 +37,13 @@ class DataCompose:
         self.is_radar = self.var_name == DataType.Radar
 
     def __str__(self) -> str:
-        return f"{self.var_name.value}@{self.level.value}"
+        return f"{self.var_name.name}@{self.level.name}"
 
     @staticmethod
     def retrive_var_level_from_string(sentence: str) -> tuple[DataType, Level]:
         var_str = sentence.split("@")[0]
         level_str = sentence.split("@")[1]
-        return DataType(var_str), Level(level_str)
+        return getattr(DataType, var_str), getattr(Level, level_str)
 
     def get_combined_key(self):
         """

@@ -7,14 +7,22 @@ import numpy as np
 import yaml
 from tqdm import tqdm
 
-from .const import DATA_CONFIG_PATH, STANDARDIZATION_PATH
-from .utils import DataCompose, gen_data, gen_path
+from .const import BLACKLIST_PATH, DATA_CONFIG_PATH, STANDARDIZATION_PATH
+from .utils import DataCompose, DataGenerator, DataType, gen_path
+
+# load already calculated mean and standard deviation
+if Path(STANDARDIZATION_PATH).exists():
+    with open(STANDARDIZATION_PATH, "r") as f:
+        stat_dict: dict = json.load(f)
+else:
+    stat_dict = {}
 
 
 def calc_standardization(
     start_time: datetime = datetime(2021, 1, 1),
-    end_time: datetime = datetime(2021, 12, 31),
-    random_num: int = 100,
+    end_time: datetime = datetime(2022, 12, 31),
+    sample_size: int = 100,
+    threshold: int = 1000,
 ) -> None:
     """
     calculates the mean and standard deviation from a dataset within a specified time range.
@@ -27,53 +35,97 @@ def calc_standardization(
     with open(DATA_CONFIG_PATH, "r") as stream:
         data_config = yaml.safe_load(stream)
 
-    # load already calculated mean and standard deviation
-    if Path(STANDARDIZATION_PATH).exists():
-        with open(STANDARDIZATION_PATH, "r") as f:
-            stat_dict_already: dict = json.load(f)
-    else:
-        stat_dict_already = {}
+    # load blacklist
+    with open(BLACKLIST_PATH, "r") as f:
+        blacklist = [
+            datetime.strptime(line.strip(), "%Y-%m-%d %H:%M")
+            for line in f
+            if line.strip()  # Skip empty lines
+        ]
 
-    # calculation
+    # data generator
     data_list = DataCompose.from_config(data_config["train_data"])
+    data_gnrt = DataGenerator(data_config["data_shape"], data_config["image_shape"])
+    use_Kth_hour_pred = (
+        data_config["use_Kth_hour_pred"] if "use_Kth_hour_pred" in data_config else None
+    )
+
+    def _progress_one_step(dt, month_cnt):
+        dt += timedelta(hours=8)
+        if (dt - start_time) / timedelta(days=30) > month_cnt:
+            month_cnt += 1
+            logging.info(f"now is processing {dt}")
+        return dt, month_cnt
+
     for data_compose in tqdm(data_list):
         dt = start_time
+        month_cnt = 0
         container = []
         logging.info(f"start executing {data_compose}")
 
-        if str(data_compose) in stat_dict_already:
+        if str(data_compose) in stat_dict:
             logging.info(
                 f"skip {data_compose} because it already exists in {STANDARDIZATION_PATH}"
             )
             continue
 
         while dt < end_time:
-            use_Kth_hour_pred = getattr(data_config, "use_Kth_hour_pred", None)
-            if gen_path(dt, data_compose, use_Kth_hour_pred).exists():
-                data = gen_data(dt, data_compose, use_Kth_hour_pred)  # (450, 450)
-                # center crop to (336, 336)
-                data = data[57:-57, 57:-57]
+            if (
+                gen_path(dt, data_compose, use_Kth_hour_pred).exists()
+                and dt not in blacklist
+            ):
+                data: np.ndarray = data_gnrt.yield_data(
+                    dt, data_compose, use_Kth_hour_pred=use_Kth_hour_pred
+                )
+
                 # random pick values from data
                 indices = np.arange(data.size)
-                chosen_indices = np.random.choice(indices, random_num, replace=False)
-                # Convert the flat indices to 2D indices
+                chosen_indices = np.random.choice(indices, sample_size, replace=False)
                 rows, cols = np.unravel_index(chosen_indices, data.shape)
                 random_values = data[rows, cols]
+
+                if (
+                    data_compose.var_name == DataType.SWDOWN
+                    and np.mean(random_values) == 0
+                ):
+                    dt, month_cnt = _progress_one_step(dt, month_cnt)
+                    continue
+
                 container.append(random_values)
 
-            dt += timedelta(hours=24)
-            if (dt - start_time) % timedelta(days=30) == timedelta(days=0):
-                logging.info(f"now is processing {dt}")
+            dt, month_cnt = _progress_one_step(dt, month_cnt)
 
-        all_data = np.stack(container)
-        stat_dict_already[str(data_compose)] = {
-            "mean": float(np.mean(all_data)),
-            "std": float(np.std(all_data)),
+        # clip values to 10-90 percentile range
+        all_data = np.stack(container).flatten()
+        lower_bound = np.percentile(all_data, 10)
+        upper_bound = np.percentile(all_data, 90)
+        filtered_data = all_data[(all_data > lower_bound) & (all_data < upper_bound)]
+
+        if len(filtered_data) < threshold:
+            logging.info(
+                f"skip {data_compose} because data sample {len(filtered_data)} is not enough"
+            )
+            continue
+
+        stat_dict[str(data_compose)] = {
+            "mean": float(np.mean(filtered_data)),
+            "std": float(np.std(filtered_data)),
         }
 
         # write into json file
         with open(STANDARDIZATION_PATH, "w") as f:
-            json.dump(stat_dict_already, f, indent=4)
+            json.dump(stat_dict, f, indent=4)
+
+
+def standardization(dc_name: str, array: np.ndarray) -> np.ndarray:
+    if dc_name in stat_dict:
+        stat = stat_dict[dc_name]
+        if stat["mean"] < 1e-5:
+            return array
+        else:
+            return (array - stat["mean"]) / stat["std"]
+    else:
+        return np.zeros_like(array)  # force to be zero if no standardization
 
 
 def destandardization(array: np.ndarray) -> np.ndarray:
@@ -87,10 +139,6 @@ def destandardization(array: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: The destandardized data with shape (lv, H, W, C) or (B, lv, H, W, C).
     """
-    # load standardization value
-    with open(STANDARDIZATION_PATH, "r") as f:
-        stat_dict_already: dict = json.load(f)
-
     # load config
     with open(DATA_CONFIG_PATH, "r") as stream:
         data_config = yaml.safe_load(stream)
@@ -102,18 +150,17 @@ def destandardization(array: np.ndarray) -> np.ndarray:
         raise ValueError(f"Expected 4D or 5D array, got {num_array_dim}D")
 
     is_surface = array.shape[1 if num_array_dim == 5 else 0] == 1
-    return _destandardize(array, data_list, stat_dict_already, is_surface)
+    return _destandardize(array, data_list, is_surface)
 
 
 def _destandardize(
-    array: np.ndarray, data_list: list[DataCompose], stat_dict: dict, is_sfc: bool
+    array: np.ndarray, data_list: list[DataCompose], is_sfc: bool
 ) -> np.ndarray:
     """Handle destandardization for surface or upper-level variables.
 
     Args:
         array: Input array with shape (lv, H, W, C) or (B, lv, H, W, C)
         data_list: List of DataCompose objects
-        stat_dict: Dictionary containing standardization statistics
         is_sfc: Boolean indicating if processing surface level data
 
     Returns:
@@ -132,24 +179,28 @@ def _destandardize(
 
     # Process each data composition
     for dc in filtered_dc:
+        if str(dc) not in stat_dict:
+            continue
+
+        stat = stat_dict[str(dc)]
         lv_idx = 0 if is_sfc else levels.index(dc.level)
         var_idx = variables.index(dc.var_name)
 
         if len(array.shape) == 5:
             new_array[:, lv_idx, :, :, var_idx] = destandardize_array(
-                array[:, lv_idx, :, :, var_idx], dc, stat_dict
+                array[:, lv_idx, :, :, var_idx], stat
             )
         else:
             new_array[lv_idx, :, :, var_idx] = destandardize_array(
-                array[lv_idx, :, :, var_idx], dc, stat_dict
+                array[lv_idx, :, :, var_idx], stat
             )
 
     return new_array
 
 
-def destandardize_array(array: np.ndarray, dc, stat_dict: dict) -> np.ndarray:
+def destandardize_array(array: np.ndarray, stat: dict[str, float]) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
-    return array * stat_dict[str(dc)]["std"] + stat_dict[str(dc)]["mean"]
+    return array * stat["std"] + stat["mean"]
 
 
 if __name__ == "__main__":

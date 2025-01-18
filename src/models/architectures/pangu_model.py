@@ -36,7 +36,8 @@ class PanguModel(nn.Module):
         window_size: tuple[int, int, int],
         upper_levels: int,
         upper_channels: int,
-        surface_channels: int,
+        surface_input_channels: int,
+        surface_output_channels: int,
         embed_dim: int,
         heads: list[int],
         depths: list[int],
@@ -80,7 +81,7 @@ class PanguModel(nn.Module):
             img_shape=image_shape,
             patch_size=patch_size,
             upper_channels=upper_channels,
-            surface_channels=surface_channels,
+            surface_channels=surface_input_channels,
             dim=embed_dim[0],
         )
 
@@ -107,7 +108,7 @@ class PanguModel(nn.Module):
             inp_shape=(inp_Z, inp_H, inp_W),
             patch_size=patch_size,
             upper_channels=upper_channels,
-            surface_channels=surface_channels,
+            surface_channels=surface_output_channels,
             dim=embed_dim[1],  # skip connection
         )
 

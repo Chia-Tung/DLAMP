@@ -3,7 +3,7 @@ input_len: 1
 output_len: 1
 split_config:
   ratios: [6, 2, 2]
-  order_by_time: True
+  split_method: "sequential"
 sampling_rate: 1
 batch_size: 1
 workers: 16

@@ -132,7 +132,9 @@ class InferenceBase(metaclass=abc.ABCMeta):
             0 < pct_grid_swap < 1
         ), f"Value should be between 0 and 1, but got {pct_grid_swap}"
         dataset: CustomDataset = self.data_manager._predict_dataset
-        data_dict = dataset._get_variables_from_dt(dt)  # {"surface": (z, h, w, c)...}
+        data_dict = dataset._get_variables_from_dt(
+            dt, is_input=True
+        )  # {"surface": (z, h, w, c)...}
 
         batch, level, width, height, channel = data.shape
         assert batch == 1, f"Only 1 eval case at a time, but got {batch}"

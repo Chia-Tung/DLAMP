@@ -1,11 +1,12 @@
-start_time: "2020-07-01 00:00"
-end_time: "2024-08-31 23:59"
+start_time: "2020-05-01 00:00"
+end_time: "2024-10-31 23:59"
 format: "%Y-%m-%d %H:%M"
 time_interval: 
   hours: 1
 data_shape: [450, 450]
-image_shape: [336, 336]
-add_time_features: False
+image_shape: [224, 224]
+add_time_features: True
+use_Kth_hour_pred: 3
 train_data:
   Z:
     - Hpa100
@@ -199,3 +200,7 @@ train_data:
     - Surface
   PW:
     - Surface
+  SWDOWN:
+    - Surface
+  OLR:
+    - NoRule

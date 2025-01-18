@@ -35,6 +35,7 @@ def main(cfg: DictConfig) -> None:
         hydra_oup_dir,
         data_list,
         image_shape=data_manager.image_shape,
+        add_time_features=cfg.data.add_time_features,
         **cfg.model,
         **cfg.lightning,
     )

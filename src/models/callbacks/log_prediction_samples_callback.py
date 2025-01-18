@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import lightning as L
-import numpy as np
 import torch
 import wandb
 import yaml
@@ -27,7 +26,7 @@ class LogPredictionSamplesCallback(Callback):
         with open(DATA_CONFIG_PATH, "r") as stream:
             data_config = yaml.safe_load(stream)
         data_list = DataCompose.from_config(data_config["train_data"])
-        self.sfc_dc = [dc for dc in data_list if dc.level.is_surface()]
+        self.sfc_vars = DataCompose.get_all_vars(data_list, only_surface=True)
 
         #
         self.log_input_tensors = []
@@ -59,9 +58,10 @@ class LogPredictionSamplesCallback(Callback):
             self.log_input_tensors.append(input)  # torch.Tensor
 
             # Target Data
-            target_data = np.squeeze(destandardization(target["surface"]))  # (H, W, C)
+            target_data = destandardization(target["surface"])  # (lv, H, W, C)
             (slp,) = DataCompose.from_config({"SLP": ["SeaSurface"]})
-            target_slp = target_data[:, :, self.sfc_dc.index(slp)]
+            var_idx = self.sfc_vars.index(slp.var_name)
+            target_slp = target_data[0, :, :, var_idx]
             fig_gt = self.painter.plot_1x1(self.data_lon, self.data_lat, target_slp)
             self.log_target_imgs.append(wandb.Image(fig_gt[0]))
 
@@ -77,13 +77,11 @@ class LogPredictionSamplesCallback(Callback):
         # no step slider for Table: https://github.com/wandb/wandb/issues/1826
         # table = wandb.Table(columns=["case ID", "pred", "target"])
         for idx, input in enumerate(self.log_input_tensors):
-            _, oup_surface = pl_module(input["upper_air"], input["surface"])
-            oup_surface = destandardization(
-                oup_surface.cpu().numpy()
-            )  # (B, 1, H, W, C)
-            oup_surface = np.squeeze(oup_surface)  # (H, W, C)
+            _, oup_sfc = pl_module(input["upper_air"], input["surface"])
+            oup_sfc = destandardization(oup_sfc.cpu().numpy())  # (B, 1, H, W, C)
             (slp,) = DataCompose.from_config({"SLP": ["SeaSurface"]})
-            oup_slp = oup_surface[:, :, self.sfc_dc.index(slp)]
+            var_idx = self.sfc_vars.index(slp.var_name)
+            oup_slp = oup_sfc[0, 0, :, :, var_idx]
             fig_pd, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, oup_slp)
             self.log_pred_imgs.append(wandb.Image(fig_pd))
 
