@@ -1,0 +1,35 @@
+# LightningDatamodule
+input_len: 1
+output_len: 1
+split_config:
+  ratios: [3, 1, 0]
+  split_method: "half_month"
+sampling_rate: 2
+batch_size: 1
+workers: 8 # mpi proc = 32 num_gpus = 8 max_user_processes = 2048
+# LightningModule
+surface_alpha: 0.25
+optim_config:
+  name: AdamW
+  args:
+    lr: 1e-4
+    weight_decay: 1e-5
+lr_schedule:
+  name: linear_decay
+  args:
+    warmup_epochs: 30
+    last_epoch: -1
+# lightning.Trainer
+num_gpus: null
+strategy: "auto"
+fast_dev_run: False
+max_epochs: null
+max_steps: null
+min_steps: 1e5 # 100k
+limit_train_batches: null
+limit_val_batches: null
+early_stop_patience: 10
+log_image_every_n_steps: 5e3
+log_every_n_steps: 50 # default 50
+resume_from_checkpoint: null
+precision: "bf16-mixed"
