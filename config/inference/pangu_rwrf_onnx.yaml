@@ -1,5 +1,5 @@
 infer_type: "onnx"
-onnx_path: "./export/Pangu_model_241229.onnx"
+onnx_path: "./export/Pangu_model_250120.onnx"
 bdy_swap_method: "linear"
 output_itv:
   hours: 1
