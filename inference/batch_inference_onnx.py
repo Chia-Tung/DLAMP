@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from tqdm import trange
 
 from src.models.lightning_modules import PanguLightningModule
+from src.utils import TimeUtil
 
 from .infer_utils import init_ort_instance, prediction_postprocess
 from .inference_base import InferenceBase
@@ -68,10 +69,17 @@ class BatchInferenceOnnx(InferenceBase):
                     tmp_upper.append(inp_upper.copy())
                     tmp_sfc.append(inp_surface.copy())
 
+                curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
                 if is_bdy_swap:
-                    curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
                     inp_upper = self._boundary_swapping(inp_upper, curr_time, 0.1)
                     inp_surface = self._boundary_swapping(inp_surface, curr_time, 0.1)
+
+                if self.cfg.data.add_time_features:
+                    time_features = TimeUtil.create_time_features(
+                        curr_time, inp_surface.shape[2:4]
+                    )  # (H, W, 4)
+                    time_features = np.expand_dims(time_features, axis=(0, 1))
+                    inp_surface = np.concatenate((inp_surface, time_features), axis=-1)
 
             # post-process 1, shape = (1, lv, H, W, c) or (Seq, lv, H, W, c)
             tmp_upper = np.concatenate(tmp_upper, axis=0)
