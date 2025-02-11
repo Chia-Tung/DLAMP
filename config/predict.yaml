@@ -13,6 +13,9 @@ hydra:
       file:
         level: DEBUG
 
+data:
+  use_Kth_hour_pred: null
+
 lightning:
   sampling_rate: 1
   batch_size: 1 # must be 1 !!!

@@ -200,7 +200,7 @@ def _destandardize(
 
 def destandardize_array(array: np.ndarray, stat: dict[str, float]) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
-    return array * stat["std"] + stat["mean"]
+    return array * stat["std"] + stat["mean"] if stat["mean"] >= 1e-5 else array
 
 
 if __name__ == "__main__":
