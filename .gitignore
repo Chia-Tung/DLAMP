@@ -13,6 +13,7 @@ logs/
 
 # checkpoint
 checkpoints/
+export/
 **.onnx
 
 # PyTorch Profiler

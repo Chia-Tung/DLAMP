@@ -26,6 +26,7 @@ def main(cfg: DictConfig) -> None:
         "export_onnx",
         data_list,
         image_shape=data_manager.image_shape,
+        add_time_features=cfg.data.add_time_features,
         **cfg.model,
         **cfg.lightning,
     )

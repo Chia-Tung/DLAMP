@@ -31,7 +31,7 @@ def main(cfg: DictConfig) -> None:
             importlib.import_module("inference"), "BatchInferenceOnnx"
         )
     infer_machine = infer_machine(cfg, eval_cases)
-    infer_machine.infer(is_bdy_swap=cfg.inference.is_bdy_swap)
+    infer_machine.infer(bdy_swap_method=cfg.inference.bdy_swap_method)
 
     # Prepare lat/lon
     data_gnrt: DataGenerator = infer_machine.data_manager.data_gnrt
@@ -69,7 +69,7 @@ def main(cfg: DictConfig) -> None:
 
         # prediction
         fig, _ = painter_pd.plot_1xn(lon, lat, pd_u, pd_v, titles=i_list)
-        dtype = "pd_bdy" if cfg.inference.is_bdy_swap else "pd"
+        dtype = "pd_bdy" if cfg.inference.bdy_swap_method else "pd"
         save_figure(fig, u_compose, save_name, eval_case, None, dtype, "1xn", remark)
 
         # operational RWRF
@@ -80,8 +80,8 @@ def main(cfg: DictConfig) -> None:
             filename = Path(
                 f"{rwrf_dir}/wrfout_d01_{curr_time.strftime('%Y-%m-%d_%H')}_interp"
             )
-            u = read_cwa_ncfile(filename, u_compose)[57:-57, 57:-57]  # (336, 336)
-            v = read_cwa_ncfile(filename, v_compose)[57:-57, 57:-57]  # (336, 336)
+            u = read_cwa_ncfile(filename, u_compose)[1:449:2, 1:449:2]  # (224, 224)
+            v = read_cwa_ncfile(filename, v_compose)[1:449:2, 1:449:2]  # (224, 224)
 
             u_tmp.append(u)
             v_tmp.append(v)
@@ -108,7 +108,7 @@ def main(cfg: DictConfig) -> None:
             # prediction
             title = f"Init: {eval_case.strftime('%Y-%m-%d %HZ')} Fcst: +{i*itv:02d}H"
             fig, _ = painter_pd.plot_1x1(lon, lat, pd_u[i], pd_v[i], title)
-            dtype = "pd_bdy" if cfg.inference.is_bdy_swap else "pd"
+            dtype = "pd_bdy" if cfg.inference.bdy_swap_method else "pd"
             save_figure(fig, u_compose, save_name, eval_case, curr_time, dtype, "1x1")
 
 
