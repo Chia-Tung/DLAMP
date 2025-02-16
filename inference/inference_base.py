@@ -107,19 +107,20 @@ class InferenceBase(metaclass=abc.ABCMeta):
         return NotImplemented
 
     def _boundary_swapping(
-        self, data: np.ndarray, dt: datetime, pct_grid_swap: float
+        self, data: np.ndarray, dt: datetime, method: str, bdy_grid: int = 8
     ) -> np.ndarray:
         """
         Swaps the boundary values of the predicted data with actual values
-        from the dataset. The width of this boundary ring is determined by
-        the `pct_grid_swap` parameter.
+        from the dataset.
 
         Args:
             data (np.ndarray): Input data array with shape (batch, level,
                 width, height, channel). Batch must be 1.
             dt (datetime): The datetime for which to get the actual values.
-            pct_grid_swap (float): Percentage of grid width/height to swap
-                at boundaries. Value should be between 0 and 1.
+            method (str): "linear" or "override".
+                "linear" means linearly replacing the boundary values.
+                "override" means replace all values on the boundary with the actual values.
+            bdy_grid (int, optional): Number of pixels to swap. Defaults to 8.
 
         Returns:
             np.ndarray: Data array with boundary values swapped, same shape as input
@@ -128,29 +129,40 @@ class InferenceBase(metaclass=abc.ABCMeta):
         Raises:
             AssertionError: If batch size is not 1.
         """
-        assert (
-            0 < pct_grid_swap < 1
-        ), f"Value should be between 0 and 1, but got {pct_grid_swap}"
-        dataset: CustomDataset = self.data_manager._predict_dataset
-        data_dict = dataset._get_variables_from_dt(
-            dt, is_input=True
-        )  # {"surface": (z, h, w, c)...}
-
         batch, level, width, height, channel = data.shape
         assert batch == 1, f"Only 1 eval case at a time, but got {batch}"
-        edge_x = np.ceil(pct_grid_swap * width / 2).astype(np.int32)
-        edge_y = np.ceil(pct_grid_swap * height / 2).astype(np.int32)
+        edge_x = edge_y = bdy_grid
 
-        # Create a boolean mask for the boundary ring
-        mask = np.zeros((width, height), dtype=bool)
-        mask[:edge_x, :] = mask[-edge_x:, :] = True
-        mask[:, :edge_y] = mask[:, -edge_y:] = True
+        dataset: CustomDataset = self.data_manager._predict_dataset
+        # {"surface": (z, h, w, c), "upper_air": (z, h, w, c)}
+        data_dict = dataset._get_variables_from_dt(dt, is_input=True)
+        gt_data = data_dict["surface"] if level == 1 else data_dict["upper_air"]
 
-        if level == 1:
-            data[0, 0, mask, :] = data_dict["surface"][0, mask, :]
+        if method == "override":
+            # Create a boolean mask for the boundary ring
+            mask = np.zeros((width, height), dtype=bool)
+            mask[:edge_x, :] = mask[-edge_x:, :] = True
+            mask[:, :edge_y] = mask[:, -edge_y:] = True
+
+            if level == 1:
+                data[0, 0, mask, :] = gt_data[0, mask, :]
+            else:
+                data[0, :, mask, :] = gt_data[:, mask, :].transpose(1, 0, 2)
+        elif method == "linear":
+            # Linear interpolation for boundary pixels
+            for i in range(bdy_grid):
+                alpha = i / bdy_grid  # 0 is outer, 1 is inner
+                mixed_gt_data = alpha * data[0] + (1 - alpha) * gt_data
+
+                mask = np.zeros((width, height), dtype=bool)
+                mask[i : i + 1, :] = mask[-i - 1 : -i, :] = True
+                mask[:, i : i + 1] = mask[:, -i - 1 : -i] = True
+                if level == 1:
+                    data[0, 0, mask, :] = mixed_gt_data[0, mask, :]
+                else:
+                    data[0, :, mask, :] = mixed_gt_data[:, mask, :].transpose(1, 0, 2)
         else:
-            data[0, :, mask, :] = data_dict["upper_air"][:, mask, :].transpose(1, 0, 2)
-
+            raise ValueError(f"Unknown method: {method}")
         return data
 
     def get_figure_materials(self, case_dt: datetime, data_compose: DataCompose):
