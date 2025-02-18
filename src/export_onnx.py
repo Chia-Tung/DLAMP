@@ -59,14 +59,14 @@ def main(cfg: DictConfig) -> None:
 
 
 def save_single_onnx():
-    file_path = f"./export/Pangu_model_250128.onnx"
+    file_path = f"./export/Pangu_model_250215.onnx"
     model = onnx.load(file_path)
     onnx.save_model(
         model,
-        "./export/Pangu_model_250128_new.onnx",
+        "./export/Pangu_model_250215_168.onnx",
         save_as_external_data=True,
         all_tensors_to_one_file=True,
-        location="./export/Pangu_model_250128_external_data",
+        location="Pangu_model_250215_168_external_data", # same dir "./export/"
         size_threshold=10240,
         convert_attribute=False,
     )
