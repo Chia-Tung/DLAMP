@@ -23,9 +23,10 @@ class EarthSpecificLayer(nn.Module):
         drop_path_ratio_list: list[float],
         dropout_rate: float,
         window_size: tuple[int],
+        skip_concat: bool = False,
     ) -> None:
         """
-        Basic layer of the network, contains either 2 or 6 blocks
+        Basic layer of the network.
 
         Args:
             input_shape (tuple[int]): The shape of the input tensor (inp_Z, inp_H, inp_W).
@@ -35,16 +36,15 @@ class EarthSpecificLayer(nn.Module):
             drop_path_ratio_list (list[float]): The drop path ratio for each block.
             dropout_rate (float): The dropout rate.
             window_size (tuple[int]): The window size with shape (win_Z, win_H, win_W).
+            skip_concat (bool, optional): Whether the input x is concatenated with the skip
+                connection tensors. Defaults to False.
 
         Raises:
-            ValueError: If depth is not either 2 or 6.
             AssertionError: If the length of drop_path_ratio_list is not equal to depth.
 
         Returns:
             None
         """
-        if depth not in [2, 6]:
-            raise ValueError("depth should be either 2 or 6")
         assert (
             len(drop_path_ratio_list) == depth
         ), "length of drop_path_ratio_list should be equal to depth"
@@ -61,6 +61,7 @@ class EarthSpecificLayer(nn.Module):
                     dropout_rate=dropout_rate,
                     window_size=window_size,
                     is_rolling=(i % 2 == 1),
+                    reduce_dim=True if i == 0 and skip_concat else False,
                 )
                 for i in range(depth)
             )
@@ -88,6 +89,7 @@ class EarthSpecificBlock(nn.Module):
         dropout_rate: float,
         window_size: tuple[int],
         is_rolling: bool,
+        reduce_dim: bool,
     ) -> None:
         """
         3D transformer block with Earth-Specific bias and window attention,
@@ -103,6 +105,8 @@ class EarthSpecificBlock(nn.Module):
             dropout_rate (float): The dropout rate.
             window_size (tuple[int]): The size of the window whose dimensions are (win_Z, win_H, win_W).
             is_rolling (bool): Whether to use shifted window attention.
+            reduce_dim (bool): Whether to divide the dimension by 2 due to the concatenation of the skip connection.
+
         Returns:
             None
         """
@@ -115,12 +119,13 @@ class EarthSpecificBlock(nn.Module):
         )
         super().__init__()
 
+        inp_dim = dim * 2 if reduce_dim else dim
         self.drop_path = DropPath(drop_prob=drop_path_ratio)
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(inp_dim)
         self.norm2 = nn.LayerNorm(dim)
-        self.MLP = MultilayerPerceptron(dim, 0)
+        self.MLP = MultilayerPerceptron(inp_dim, 0, reduce_dim)
         self.attention = EarthAttention3D(
-            dim=dim,
+            dim=inp_dim,
             input_shape=input_shape,
             heads=heads,
             dropout_rate=dropout_rate,
@@ -135,6 +140,7 @@ class EarthSpecificBlock(nn.Module):
         if is_rolling:
             mask = self._gen_3d_attn_mask(input_shape, window_size)
             self.register_buffer("attn_mask", mask)
+        self.reduce_dim = reduce_dim
 
     def _gen_3d_attn_mask(
         self,
@@ -218,7 +224,8 @@ class EarthSpecificBlock(nn.Module):
 
         x = rearrange(x, "b z h w c -> b (z h w) c")
         x = shortcut + self.drop_path(self.norm1(x))
-        x = x + self.drop_path(self.norm2(self.MLP(x)))
+        residual = self.drop_path(self.norm2(self.MLP(x)))
+        x = residual if self.reduce_dim else x + residual
         return x
 
 

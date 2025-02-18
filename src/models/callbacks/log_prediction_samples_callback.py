@@ -59,7 +59,7 @@ class LogPredictionSamplesCallback(Callback):
 
             # Target Data
             target_data = destandardization(target["surface"])  # (lv, H, W, C)
-            (slp,) = DataCompose.from_config({"SLP": ["SeaSurface"]})
+            (slp,) = DataCompose.from_config({"PSFC": ["Surface"]})
             var_idx = self.sfc_vars.index(slp.var_name)
             target_slp = target_data[0, :, :, var_idx]
             fig_gt = self.painter.plot_1x1(self.data_lon, self.data_lat, target_slp)
@@ -79,7 +79,7 @@ class LogPredictionSamplesCallback(Callback):
         for idx, input in enumerate(self.log_input_tensors):
             _, oup_sfc = pl_module(input["upper_air"], input["surface"])
             oup_sfc = destandardization(oup_sfc.cpu().numpy())  # (B, 1, H, W, C)
-            (slp,) = DataCompose.from_config({"SLP": ["SeaSurface"]})
+            (slp,) = DataCompose.from_config({"PSFC": ["Surface"]})
             var_idx = self.sfc_vars.index(slp.var_name)
             oup_slp = oup_sfc[0, 0, :, :, var_idx]
             fig_pd, _ = self.painter.plot_1x1(self.data_lon, self.data_lat, oup_slp)

@@ -17,8 +17,8 @@ hydra:
   # verbose: [src.managers.data_manager] 
 
 defaults:
-  - data: rwrf_202501
-  - lightning: pangu_rwrf_202501
-  - model: pangu_rwrf_202501
+  - data: rwrf_202502
+  - lightning: pangu_rwrf_202502
+  - model: pangu_rwrf_202502
   - _self_
   - override hydra/job_logging: default # default/disabled/custom

@@ -17,12 +17,14 @@ if Path(STANDARDIZATION_PATH).exists():
 else:
     stat_dict = {}
 
+MEAN_THRESHOLD = 1e-4
+
 
 def calc_standardization(
     start_time: datetime = datetime(2021, 1, 1),
     end_time: datetime = datetime(2022, 12, 31),
     sample_size: int = 100,
-    threshold: int = 1000,
+    num_criteria: int = 1000,
 ) -> None:
     """
     calculates the mean and standard deviation from a dataset within a specified time range.
@@ -101,7 +103,7 @@ def calc_standardization(
         upper_bound = np.percentile(all_data, 90)
         filtered_data = all_data[(all_data > lower_bound) & (all_data < upper_bound)]
 
-        if len(filtered_data) < threshold:
+        if len(filtered_data) < num_criteria:
             logging.info(
                 f"skip {data_compose} because data sample {len(filtered_data)} is not enough"
             )
@@ -120,7 +122,7 @@ def calc_standardization(
 def standardization(dc_name: str, array: np.ndarray) -> np.ndarray:
     if dc_name in stat_dict:
         stat = stat_dict[dc_name]
-        if stat["mean"] < 1e-5:
+        if stat["mean"] < MEAN_THRESHOLD:
             return array
         else:
             return (array - stat["mean"]) / stat["std"]
@@ -200,7 +202,9 @@ def _destandardize(
 
 def destandardize_array(array: np.ndarray, stat: dict[str, float]) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
-    return array * stat["std"] + stat["mean"] if stat["mean"] >= 1e-5 else array
+    return (
+        array if stat["mean"] < MEAN_THRESHOLD else array * stat["std"] + stat["mean"]
+    )
 
 
 if __name__ == "__main__":

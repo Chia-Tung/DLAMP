@@ -1,4 +1,5 @@
 import hydra
+import onnx
 from omegaconf import DictConfig, OmegaConf
 
 from src.managers import DataManager
@@ -54,6 +55,20 @@ def main(cfg: DictConfig) -> None:
             "output_upper": {0: "batch_size"},
             "output_surface": {0: "batch_size"},
         },
+    )
+
+
+def save_single_onnx():
+    file_path = f"./export/Pangu_model_250215.onnx"
+    model = onnx.load(file_path)
+    onnx.save_model(
+        model,
+        "./export/Pangu_model_250215_168.onnx",
+        save_as_external_data=True,
+        all_tensors_to_one_file=True,
+        location="Pangu_model_250215_168_external_data", # same dir "./export/"
+        size_threshold=10240,
+        convert_attribute=False,
     )
 
 
