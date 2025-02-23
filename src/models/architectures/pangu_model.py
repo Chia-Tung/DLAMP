@@ -157,6 +157,7 @@ class PanguModel(nn.Module):
             tuple[torch.Tensor, torch.Tensor]: Tuple of upper-air data and surface data.
         """
         # Initial embedding
+        input_upper, input_surface = self.smoothing_layer(input_upper, input_surface)
         x = self.patch_embed(input_upper, input_surface)
 
         # Store skip connections

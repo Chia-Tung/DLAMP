@@ -1,6 +1,7 @@
-import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from .tw_background import TwBackground
@@ -32,6 +33,20 @@ class VizMixingRatio(TwBackground):
 
         return fig, ax
 
+    def plot_1x1(
+        self,
+        lon: np.ndarray,
+        lat: np.ndarray,
+        data: np.ndarray,
+        title: str = "",
+    ) -> tuple[Figure, Axes]:
+        plt.close()
+        fig, ax = plt.subplots(1, 1, figsize=(6, 5), dpi=200, facecolor="w")
+        fig, ax = super().plot_bg(fig, ax)
+        fig, ax = self._plot_q(fig, ax, lon, lat, data, title)
+
+        return fig, ax
+
     def _plot_q(
         self,
         fig: plt.Figure,
@@ -40,14 +55,14 @@ class VizMixingRatio(TwBackground):
         lat: np.ndarray,
         data: np.ndarray,
         title: str = "",
-    ) -> tuple[plt.Figure, plt.Axes]:
-        data *= 1000  # kg/kg -> g/kg
+    ) -> tuple[Figure, Axes]:
+        # data *= 1000  # kg/kg -> g/kg
         conf = ax.contourf(
             lon,
             lat,
             data,
             # levels=np.linspace(5550, 5900, 15),
-            cmap="GnBu",
+            cmap="BrBG",
             zorder=0,
         )
 

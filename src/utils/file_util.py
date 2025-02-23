@@ -89,8 +89,9 @@ def read_cwa_ncfile(
                 dataset[DataCompose(getattr(DataType, q), dc.level).combined_key].values
                 for q in components
             )  # (1, Z, H, W)
+            data *= 1000  # kg/kg -> g/kg
         else:
-            data = dataset[dc.combined_key].values  # (1, H, W)
+            data = dataset[dc.combined_key].values  # (1, Z, H, W) or (1, H, W)
 
         data = data.astype(dtype) if dtype is not None else data
 

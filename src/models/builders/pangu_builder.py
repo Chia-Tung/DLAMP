@@ -139,7 +139,7 @@ class PanguBuilder(BaseBuilder):
             verbose=True,
             monitor="val_loss_epoch",
             mode="min",
-            save_last=False,
+            save_last=self.kwargs.save_last,
         )
 
     def wandb_logger(self, save_dir: str = "./logs") -> WandbLogger:

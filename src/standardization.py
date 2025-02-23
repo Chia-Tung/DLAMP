@@ -122,7 +122,7 @@ def calc_standardization(
 def standardization(dc_name: str, array: np.ndarray) -> np.ndarray:
     if dc_name in stat_dict:
         stat = stat_dict[dc_name]
-        if stat["mean"] < MEAN_THRESHOLD:
+        if abs(stat["mean"]) < MEAN_THRESHOLD:
             return array
         else:
             return (array - stat["mean"]) / stat["std"]
@@ -203,7 +203,9 @@ def _destandardize(
 def destandardize_array(array: np.ndarray, stat: dict[str, float]) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
     return (
-        array if stat["mean"] < MEAN_THRESHOLD else array * stat["std"] + stat["mean"]
+        array
+        if abs(stat["mean"]) < MEAN_THRESHOLD
+        else array * stat["std"] + stat["mean"]
     )
 
 
