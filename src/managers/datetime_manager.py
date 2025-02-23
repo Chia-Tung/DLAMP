@@ -11,7 +11,7 @@ import numpy as np
 from tqdm import tqdm
 
 from ..const import BLACKLIST_PATH, DATA_SOURCE, EVAL_CASES
-from ..utils import DataCompose, TimeUtil, gen_path
+from ..utils import DataCompose, TimeUtil, gen_path, get_path
 
 log = logging.getLogger(__name__)
 
@@ -344,3 +344,23 @@ class DatetimeManager:
     @is_done.setter
     def is_done(self, new_value: bool) -> None:
         self._done = new_value
+
+    def check_qpesums_data(self) -> None:
+        to_remove = set()
+        for dt in self.train_time:
+            if not get_path(dt).exists():
+                to_remove.add(dt)
+        for dt in self.valid_time:
+            if not get_path(dt).exists():
+                to_remove.add(dt)
+
+        # Calculate how many items will be removed from each set
+        train_removed = len(to_remove.intersection(self.train_time))
+        valid_removed = len(to_remove.intersection(self.valid_time))
+
+        # Remove elements that are in to_remove from train_time and valid_time
+        self.train_time -= to_remove
+        self.valid_time -= to_remove
+
+        log.info(f"Removed {train_removed} items from train_time for QPESUMS")
+        log.info(f"Removed {valid_removed} items from valid_time for QPESUMS")

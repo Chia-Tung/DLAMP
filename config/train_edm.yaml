@@ -1,0 +1,30 @@
+hydra:
+  run:  
+    dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S}
+  job:
+    chdir: False
+  output_subdir: .hydra
+  job_logging:
+    root:
+      level: DEBUG
+    handlers:
+      console:
+        level: INFO
+      file:
+        level: DEBUG
+
+data:
+  qpesums: True
+
+lightning:
+  batch_size: 8
+
+model:
+  hidden_dim: 32
+
+defaults:
+  - data: rwrf_202502.yaml
+  - lightning: edm_rwrf_202503
+  - model: diffusion_rwrf_202409
+  - _self_
+  - override hydra/job_logging: default

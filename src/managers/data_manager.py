@@ -4,7 +4,7 @@ from datetime import datetime
 import lightning as L
 from torch.utils.data import DataLoader
 
-from ..datasets import CustomDataset
+from ..datasets import CustomDataset, CustomDatasetQPESUMS
 from ..utils import DataCompose, DataGenerator
 from .datetime_manager import DatetimeManager
 
@@ -63,6 +63,8 @@ class DataManager(L.LightningDataModule):
             NotImplementedError: If the stage is "predict".
             ValueError: If the stage is invalid.
         """
+        aux_qpesums: bool = getattr(self.hparams, "qpesums", None)
+
         if self._already_called[stage]:
             log.warning(f'Stage "{stage}" has already been called. Skipping...')
             return
@@ -72,18 +74,22 @@ class DataManager(L.LightningDataModule):
             self.dtm.build_initial_time_list(self.data_list, use_Kth_hour).random_split(
                 **self.hparams.split_config
             ).build_eval_cases().swap_eval_cases_from_train_valid()
+
+            if aux_qpesums:  # sanity check for qpesums data
+                self.dtm.check_qpesums_data()
+
             self.dtm.is_done = True
 
         match stage:
             case "fit":
-                self._train_dataset = self._setup("train")
-                self._valid_dataset = self._setup("valid")
+                self._train_dataset = self._setup("train", aux_qpesums)
+                self._valid_dataset = self._setup("valid", aux_qpesums)
             case "validate":
-                self._valid_dataset = self._setup("valid")
+                self._valid_dataset = self._setup("valid", aux_qpesums)
             case "test":
-                self._test_dataset = self._setup("test")
+                self._test_dataset = self._setup("test", aux_qpesums)
             case "predict":
-                self._predict_dataset = self._setup("predict")
+                self._predict_dataset = self._setup("predict", aux_qpesums)
             case _:
                 log.error(f"Invalid stage: {stage}")
                 raise ValueError(f"Invalid stage: {stage}")
@@ -104,13 +110,14 @@ class DataManager(L.LightningDataModule):
             f"Batch Size: {self.hparams.batch_size}"
         )
 
-    def _setup(self, stage: str):
+    def _setup(self, stage: str, aux_qpesums: bool):
         """
         Sets up the `torch.utils.data.Dataset` for the specified stage.
 
         Parameters:
             stage (str): The stage for which the data needs to be set up.
                 Possible values are "train", "valid", "test", or "predict".
+            aux_qpesums (bool): Whether to use auxiliary qpesums data.
 
         Returns:
             CustomDataset: The subclass of `torch.utils.data.Dataset`.
@@ -121,7 +128,8 @@ class DataManager(L.LightningDataModule):
             else getattr(self.dtm, f"ordered_{stage}_time")
         )
 
-        return CustomDataset(
+        dataset_class = CustomDatasetQPESUMS if aux_qpesums else CustomDataset
+        return dataset_class(
             self.hparams.input_len,
             self.hparams.output_len,
             getattr(self.hparams, "output_itv", {"hours": 1}),

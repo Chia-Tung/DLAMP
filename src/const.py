@@ -15,6 +15,7 @@ TOPOGRAPHY_MASK_PATH = "./assets/constant_masks/topography_mask_4km.npy"
 COUNTY_SHP_PATH = "./assets/town_shp/COUNTY_MOI_1090820.shp"
 STANDARDIZATION_PATH = "./assets/standardization/z_score_3h.json"
 DATA_PATH = "/work/dong1128/rwrf_data/"
+QPERR_DATA_PATH = "/work/dong1128/QPERR/"
 FIGURE_PATH = "./gallery/"
 DATA_CONFIG_PATH = "./config/data/rwrf_202502.yaml"
 
