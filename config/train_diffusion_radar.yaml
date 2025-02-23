@@ -14,11 +14,11 @@ hydra:
         level: DEBUG
 
 lightning:
-  batch_size: 8
+  batch_size: 32
 
 model:
   only_radar: True
-  hidden_dim: 32
+  hidden_dim: 128
 
 defaults:
   - data: rwrf_202409
