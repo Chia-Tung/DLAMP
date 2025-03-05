@@ -45,7 +45,8 @@ def main(cfg: DictConfig) -> None:
     painter_gt = VizWind(u_compose.level.value)
     painter_pd = VizWind()
     itv = infer_machine.output_itv // infer_machine.data_itv
-    save_name = cfg.inference.onnx_path.split("/")[-1].split(".")[0]
+    save_name = getattr(cfg.inference, "onnx_path", cfg.inference.best_ckpt)
+    save_name = save_name.split("/")[-1].split(".")[0]
 
     """""" """""" """""" """
         Plot wind 850 1xn

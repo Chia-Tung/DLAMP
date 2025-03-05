@@ -28,7 +28,7 @@ class BatchInferenceOnnx(InferenceBase):
 
         log.info(f"onnx runtime session is ready on GPU {self.cfg.inference.gpu_id}")
 
-    def infer(self, bdy_swap_method: str | None = None):
+    def infer(self, bdy_swap_method: dict | None = None):
         """
         Perform batch inference using ONNX runtime.
 
@@ -79,10 +79,16 @@ class BatchInferenceOnnx(InferenceBase):
 
                 if bdy_swap_method:
                     inp_upper = self._boundary_swapping(
-                        inp_upper, curr_time, bdy_swap_method
+                        inp_surface,
+                        curr_time,
+                        bdy_swap_method["name"],
+                        bdy_swap_method["n_of_grid"],
                     )
                     inp_surface = self._boundary_swapping(
-                        inp_surface, curr_time, bdy_swap_method
+                        inp_surface,
+                        curr_time,
+                        bdy_swap_method["name"],
+                        bdy_swap_method["n_of_grid"],
                     )
 
             # post-process 1, shape = (1, lv, H, W, c) or (Seq, lv, H, W, c)
