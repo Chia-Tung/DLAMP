@@ -124,6 +124,8 @@ def standardization(dc_name: str, array: np.ndarray) -> np.ndarray:
         stat = stat_dict[dc_name]
         if abs(stat["mean"]) < MEAN_THRESHOLD:
             return array
+        elif "Qw@Hpa" in dc_name:
+            return np.log(array * 1e5 + 1)
         else:
             return (array - stat["mean"]) / stat["std"]
     else:
@@ -190,23 +192,26 @@ def _destandardize(
 
         if len(array.shape) == 5:
             new_array[:, lv_idx, :, :, var_idx] = destandardize_array(
-                array[:, lv_idx, :, :, var_idx], stat
+                array[:, lv_idx, :, :, var_idx], stat, dc
             )
         else:
             new_array[lv_idx, :, :, var_idx] = destandardize_array(
-                array[lv_idx, :, :, var_idx], stat
+                array[lv_idx, :, :, var_idx], stat, dc
             )
 
     return new_array
 
 
-def destandardize_array(array: np.ndarray, stat: dict[str, float]) -> np.ndarray:
+def destandardize_array(
+    array: np.ndarray, stat: dict[str, float], dc: DataCompose
+) -> np.ndarray:
     """Apply destandardization to a single array using statistics from stat_dict."""
-    return (
-        array
-        if abs(stat["mean"]) < MEAN_THRESHOLD
-        else array * stat["std"] + stat["mean"]
-    )
+    if abs(stat["mean"]) < MEAN_THRESHOLD:
+        return array
+    elif "Qw@Hpa" in str(dc):
+        return (np.exp(array) - 1) / 1e5
+    else:
+        return array * stat["std"] + stat["mean"]
 
 
 if __name__ == "__main__":

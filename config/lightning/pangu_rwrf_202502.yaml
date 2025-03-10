@@ -12,13 +12,12 @@ surface_alpha: 0.25
 optim_config:
   name: AdamW
   args:
-    lr: 1e-4
-    weight_decay: 1e-5
+    lr: 2e-4
+    weight_decay: 3e-6
 lr_schedule:
-  name: linear_decay
+  name: cosine
   args:
-    warmup_epochs: 30
-    last_epoch: -1
+    warmup_steps: 1000
 # lightning.Trainer
 num_gpus: null
 strategy: "auto"

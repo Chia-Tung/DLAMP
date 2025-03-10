@@ -18,7 +18,11 @@ from visual import *
 @hydra.main(version_base=None, config_path="config", config_name="predict")
 def main(cfg: DictConfig) -> None:
     OmegaConf.set_struct(cfg, True)
-    eval_cases = [datetime(2022, 9, 11)]
+    eval_cases = [
+        datetime(2020, 5, 21, 17),  # Meiyu
+        datetime(2022, 9, 11),  # TC MUIFA
+        datetime(2024, 10, 31, 2),  # TC Kong-rey
+    ]
     eval_cases.sort()
 
     # Inference
