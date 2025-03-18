@@ -30,10 +30,12 @@ def main(cfg: DictConfig) -> None:
         infer_machine: InferenceBase = getattr(
             importlib.import_module("inference"), "BatchInferenceCkpt"
         )
+        save_name = cfg.inference.best_ckpt.split("/")[-1].split("-")[0]
     elif cfg.inference.infer_type == "onnx":
         infer_machine: InferenceBase = getattr(
             importlib.import_module("inference"), "BatchInferenceOnnx"
         )
+        save_name = cfg.inference.onnx_path.split("/")[-1].split(".")[0]
     infer_machine = infer_machine(cfg, eval_cases)
     infer_machine.infer(bdy_swap_method=cfg.inference.bdy_swap_method)
 
@@ -46,11 +48,9 @@ def main(cfg: DictConfig) -> None:
 
     # Prepare painter
     u_compose, v_compose = DataCompose.from_config({"U": ["Hpa850"], "V": ["Hpa850"]})
-    painter_gt = VizWind(u_compose.level.value)
+    painter_gt = VizWind(u_compose.level.name)
     painter_pd = VizWind()
     itv = infer_machine.output_itv // infer_machine.data_itv
-    save_name = getattr(cfg.inference, "onnx_path", cfg.inference.best_ckpt)
-    save_name = save_name.split("/")[-1].split(".")[0]
 
     """""" """""" """""" """
         Plot wind 850 1xn

@@ -61,8 +61,9 @@ class VizMixingRatio(TwBackground):
             lon,
             lat,
             data,
-            # levels=np.linspace(5550, 5900, 15),
-            cmap="BrBG",
+            levels=np.arange(0, 2.6, 0.1),
+            cmap="BuPu",
+            # cmap="BrBG",
             zorder=0,
         )
 

@@ -10,7 +10,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from .tw_background import TwBackground
 
 
-class VizPressure(TwBackground):
+class VizSwdown(TwBackground):
     def __init__(self):
         super().__init__()
 
@@ -25,7 +25,7 @@ class VizPressure(TwBackground):
         plt.close()
         fig, ax = plt.subplots(1, 1, figsize=(6, 5), dpi=200, facecolor="w")
         fig, ax = super().plot_bg(fig, ax, grid_on)
-        fig, ax = self._plot_pressure(fig, ax, lon, lat, data, title)
+        fig, ax = self._plot_swdown(fig, ax, lon, lat, data, title)
 
         return fig, ax
 
@@ -74,7 +74,7 @@ class VizPressure(TwBackground):
                 all_init_times[j].strftime("%Y%m%d_%H%M") if all_init_times else ""
             )
             fig, tmp_ax = self.plot_bg(fig, tmp_ax, grid_on)
-            fig, tmp_ax = self._plot_pressure(
+            fig, tmp_ax = self._plot_swdown(
                 fig, tmp_ax, lon, lat, prediction[j], time_title
             )
 
@@ -96,11 +96,11 @@ class VizPressure(TwBackground):
             tmp_ax = ax[j]
             title = titles[j] if titles else ""
             fig, tmp_ax = self.plot_bg(fig, tmp_ax, grid_on)
-            fig, tmp_ax = self._plot_pressure(fig, tmp_ax, lon, lat, data[j], title)
+            fig, tmp_ax = self._plot_swdown(fig, tmp_ax, lon, lat, data[j], title)
 
         return fig, ax
 
-    def _plot_pressure(
+    def _plot_swdown(
         self,
         fig: Figure,
         ax: Axes,
@@ -115,7 +115,8 @@ class VizPressure(TwBackground):
             lat,
             data,
             cmap="viridis",
-            levels=np.arange(900, 1005, 5),
+            levels=np.arange(-40, 400, 40),  # SWDOWN
+            # levels=np.arange(0, 300, 30),  # OLR
             zorder=0,
             extend="both",
         )
@@ -142,6 +143,6 @@ class VizPressure(TwBackground):
 
         # colorbar
         cbar = fig.colorbar(conf, cax=cax)
-        cbar.ax.set_title("hpa")
+        cbar.ax.set_title("$\\frac{W}{m^2}$")
 
         return fig, ax

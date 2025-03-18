@@ -1,8 +1,8 @@
 infer_type: "onnx"
-onnx_path: "./export/Pangu_model_250128.onnx"
+onnx_path: "./export/Pangu_model_250310.onnx"
 bdy_swap_method: 
   name: "linear"
-  n_of_grid: 8
+  n_of_grid: 44
 output_itv:
-  hours: 1
+  hours: 4
 gpu_id: 0

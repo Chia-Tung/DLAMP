@@ -79,7 +79,7 @@ class BatchInferenceOnnx(InferenceBase):
 
                 if bdy_swap_method:
                     inp_upper = self._boundary_swapping(
-                        inp_surface,
+                        inp_upper,
                         curr_time,
                         bdy_swap_method["name"],
                         bdy_swap_method["n_of_grid"],

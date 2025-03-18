@@ -45,7 +45,7 @@ class VizGph(TwBackground):
         data: np.ndarray,
         title: str = "",
     ) -> tuple[plt.Figure, plt.Axes]:
-        conf = ax.contourf(
+        conf = ax.contour(
             lon,
             lat,
             data,
