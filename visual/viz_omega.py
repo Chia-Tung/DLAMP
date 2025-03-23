@@ -61,7 +61,7 @@ class VizOmega(TwBackground):
             lat,
             data,
             cmap="bwr",
-            levels=np.arange(-0.9, 1, 0.05),
+            levels=np.arange(-0.5, 0.5, 0.05),
             zorder=0,
             extend="both",
         )
