@@ -73,7 +73,8 @@ class BatchInferenceCkpt(InferenceBase):
             # auto-regression
             tmp_upper, tmp_sfc = [], []
             for step in trange(predict_iters, desc=f"Infer batch {batch_id}"):
-                inp_upper, inp_surface = self.pl_module(inp_upper, inp_surface)
+                with torch.inference_mode():
+                    inp_upper, inp_surface = self.pl_module(inp_upper, inp_surface)
                 inp_upper = inp_upper.detach().cpu().numpy()
                 inp_surface = inp_surface.detach().cpu().numpy()
 
