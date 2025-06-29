@@ -157,7 +157,9 @@ class PanguModel(nn.Module):
             tuple[torch.Tensor, torch.Tensor]: Tuple of upper-air data and surface data.
         """
         # Initial embedding
+        input_upper, input_surface = self.smoothing_layer(input_upper, input_surface)
         x = self.patch_embed(input_upper, input_surface)
+        skip = x
 
         # Store skip connections
         skip_connections = []
@@ -182,6 +184,7 @@ class PanguModel(nn.Module):
         x = getattr(self, f"layer{2 * self.hierarchy}")(x)
 
         # Recovery and smoothing
+        x += skip
         output_upper, output_surface = self.patch_recover(x)
         output_upper, output_surface = self.smoothing_layer(
             output_upper, output_surface

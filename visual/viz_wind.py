@@ -31,11 +31,6 @@ class VizWind(TwBackground):
         assert len(ground_truth_u.shape) == 3
         assert ground_truth_u.shape[-2:] == lat.shape
 
-        # since lat/lon may not be monotonically increasing in a same pace
-        if len(lat.shape) == 2 and len(lon.shape) == 2:
-            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
-            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
-
         rows = 2  # gt/pred
         columns = ground_truth_u.shape[0]
         plt.close()
@@ -73,10 +68,6 @@ class VizWind(TwBackground):
         v_wind: np.ndarray,
         title: str = "",
     ) -> tuple[Figure, Axes]:
-        # since lat/lon may not be monotonically increasing in a same pace
-        if len(lat.shape) == 2 and len(lon.shape) == 2:
-            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
-            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
 
         plt.close()
         fig, ax = plt.subplots(1, 1, figsize=(6, 5), dpi=200, facecolor="w")
@@ -94,33 +85,42 @@ class VizWind(TwBackground):
         u_wind: np.ndarray,
         v_wind: np.ndarray,
         title: str = "",
+        quiver_only: bool = False,
     ) -> tuple[Figure, Axes]:
+        # since lat/lon may not be monotonically increasing in a same pace
+        if len(lat.shape) == 2 and len(lon.shape) == 2:
+            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
+            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
+
         # wind speed
         scalar = np.hypot(u_wind, v_wind)
 
         # plot data
-        conf = ax.contourf(
-            lon,
-            lat,
-            scalar,
-            levels=WSP_LV,
-            colors=WSP_COLOR,
-            zorder=0,
-        )
         ax.streamplot(
             lon, lat, u_wind, v_wind, zorder=0, color="C0", linewidth=0.5, arrowsize=0.6
         )
+
         if title:
             ax.set_title(f"{title} {self.title_suffix}")
 
-        # create an axes on the right side of ax. The width of cax will be 5%
-        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
+        if not quiver_only:
+            conf = ax.contourf(
+                lon,
+                lat,
+                scalar,
+                levels=WSP_LV,
+                colors=WSP_COLOR,
+                zorder=-1,
+            )
 
-        # colorbar
-        cbar = fig.colorbar(conf, cax=cax)
-        cbar.ax.set_title("$\\frac{m}{s}$")
+            # create an axes on the right side of ax. The width of cax will be 5%
+            # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+
+            # colorbar
+            cbar = fig.colorbar(conf, cax=cax)
+            cbar.ax.set_title("$\\frac{m}{s}$")
 
         return fig, ax
 
@@ -133,10 +133,6 @@ class VizWind(TwBackground):
         titles: list[str] = [],
         grid_on: bool = False,
     ):
-        if len(lat.shape) == 2 and len(lon.shape) == 2:
-            lat = np.linspace(lat[0, 0], lat[-1, 0], lat.shape[0])
-            lon = np.linspace(lon[0, 0], lon[0, -1], lon.shape[1])
-
         cols = u_wind_list.shape[0]
 
         plt.close()

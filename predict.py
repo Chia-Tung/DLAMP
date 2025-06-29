@@ -18,7 +18,11 @@ from visual import *
 @hydra.main(version_base=None, config_path="config", config_name="predict")
 def main(cfg: DictConfig) -> None:
     OmegaConf.set_struct(cfg, True)
-    eval_cases = [datetime(2022, 9, 11)]
+    eval_cases = [
+        datetime(2020, 5, 21, 17),  # Meiyu
+        datetime(2022, 9, 11),  # TC MUIFA
+        datetime(2024, 10, 31, 2),  # TC Kong-rey
+    ]
     eval_cases.sort()
 
     # Inference
@@ -26,10 +30,12 @@ def main(cfg: DictConfig) -> None:
         infer_machine: InferenceBase = getattr(
             importlib.import_module("inference"), "BatchInferenceCkpt"
         )
+        save_name = cfg.inference.best_ckpt.split("/")[-1].split("-")[0]
     elif cfg.inference.infer_type == "onnx":
         infer_machine: InferenceBase = getattr(
             importlib.import_module("inference"), "BatchInferenceOnnx"
         )
+        save_name = cfg.inference.onnx_path.split("/")[-1].split(".")[0]
     infer_machine = infer_machine(cfg, eval_cases)
     infer_machine.infer(bdy_swap_method=cfg.inference.bdy_swap_method)
 
@@ -42,10 +48,9 @@ def main(cfg: DictConfig) -> None:
 
     # Prepare painter
     u_compose, v_compose = DataCompose.from_config({"U": ["Hpa850"], "V": ["Hpa850"]})
-    painter_gt = VizWind(u_compose.level.value)
+    painter_gt = VizWind(u_compose.level.name)
     painter_pd = VizWind()
     itv = infer_machine.output_itv // infer_machine.data_itv
-    save_name = cfg.inference.onnx_path.split("/")[-1].split(".")[0]
 
     """""" """""" """""" """
         Plot wind 850 1xn

@@ -1,5 +1,7 @@
 infer_type: "ckpt"
-best_ckpt: "./checkpoints/Pangu_250128_165223-epoch=112-val_loss_epoch=0.2171.ckpt"
-is_bdy_swap: True
+best_ckpt: "./checkpoints/Pangu_250310_214141-epoch=584-val_loss_epoch=0.3980.ckpt"
+bdy_swap_method: 
+  name: "linear"
+  n_of_grid: 44
 output_itv:
-  hours: 6
+  hours: 4

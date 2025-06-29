@@ -209,9 +209,9 @@ def get_scheduler_with_warmup(
             lr_scale = 1.0
         else:
             overflow = current_epoch - warmup_epochs
-            lr_scale = 0.97**overflow
-            if lr_scale < 1e-2:
-                lr_scale = 1e-2
+            lr_scale = 0.995**overflow
+            if lr_scale < 0.05:
+                lr_scale = 0.05
         return lr_scale
 
     match schedule_type:

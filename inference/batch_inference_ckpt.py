@@ -8,6 +8,7 @@ from tqdm import trange
 
 from src.models.lightning_modules import PanguLightningModule
 from src.models.model_utils import get_builder
+from src.utils import TimeUtil
 
 from .infer_utils import prediction_postprocess
 from .inference_base import InferenceBase
@@ -27,6 +28,7 @@ class BatchInferenceCkpt(InferenceBase):
             "predict",
             self.data_list,
             image_shape=self.data_manager.image_shape,
+            add_time_features=self.cfg.data.add_time_features,
             **self.cfg.model,
             **self.cfg.lightning,
         )
@@ -40,7 +42,7 @@ class BatchInferenceCkpt(InferenceBase):
         self.pl_module = self.pl_module.cuda()
         self.pl_module.eval()
 
-    def infer(self, is_bdy_swap: bool = False):
+    def infer(self, bdy_swap_method: dict | None = None):
         """
         Perform batch inference using ONNX runtime.
 
@@ -71,20 +73,39 @@ class BatchInferenceCkpt(InferenceBase):
             # auto-regression
             tmp_upper, tmp_sfc = [], []
             for step in trange(predict_iters, desc=f"Infer batch {batch_id}"):
-                inp_upper, inp_surface = self.pl_module(inp_upper, inp_surface)
+                with torch.inference_mode():
+                    inp_upper, inp_surface = self.pl_module(inp_upper, inp_surface)
+                inp_upper = inp_upper.detach().cpu().numpy()
+                inp_surface = inp_surface.detach().cpu().numpy()
 
                 if (step + 1) % interval == 0:
-                    tmp_upper.append(inp_upper.cpu().numpy())
-                    tmp_sfc.append(inp_surface.cpu().numpy())
+                    tmp_upper.append(inp_upper.copy())
+                    tmp_sfc.append(inp_surface.copy())
 
-                if is_bdy_swap:
-                    inp_upper = inp_upper.cpu().numpy()
-                    inp_surface = inp_surface.cpu().numpy()
-                    curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
-                    inp_upper = self._boundary_swapping(inp_upper, curr_time, 0.1)
-                    inp_surface = self._boundary_swapping(inp_surface, curr_time, 0.1)
-                    inp_upper = torch.from_numpy(inp_upper).cuda()
-                    inp_surface = torch.from_numpy(inp_surface).cuda()
+                curr_time = self.init_time[batch_id] + timedelta(hours=step + 1)
+                if self.cfg.data.add_time_features:
+                    time_features = TimeUtil.create_time_features(
+                        curr_time, inp_surface.shape[2:4]
+                    )  # (H, W, 4)
+                    time_features = np.expand_dims(time_features, axis=(0, 1))
+                    inp_surface = np.concatenate((inp_surface, time_features), axis=-1)
+
+                if bdy_swap_method:
+                    inp_upper = self._boundary_swapping(
+                        inp_upper,
+                        curr_time,
+                        bdy_swap_method["name"],
+                        bdy_swap_method["n_of_grid"],
+                    )
+                    inp_surface = self._boundary_swapping(
+                        inp_surface,
+                        curr_time,
+                        bdy_swap_method["name"],
+                        bdy_swap_method["n_of_grid"],
+                    )
+
+                inp_upper = torch.from_numpy(inp_upper).cuda()
+                inp_surface = torch.from_numpy(inp_surface).cuda()
 
             # post-process 1, shape = (1, lv, H, W, c) or (Seq, lv, H, W, c)
             tmp_upper = np.concatenate(tmp_upper, axis=0)

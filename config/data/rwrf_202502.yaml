@@ -10,94 +10,73 @@ use_Kth_hour_pred: 3
 train_data:
   Z:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
   T:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
     - Meter2
   U:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
     - Meter10
   V:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
     - Meter10
   W:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
   Qv:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
     - Meter2
   Qw:
     - Hpa200
-    - Hpa350
     - Hpa500
-    - Hpa650
+    - Hpa700
     - Hpa800
     - Hpa850
     - Hpa900
-    - Hpa925
     - Hpa950
-    - Hpa975
     - Hpa1000
-  RH:
-    - Meter2
+  SLP:
+    - SeaSurface
   SST:
     - SeaSurface
   PSFC:
