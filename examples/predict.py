@@ -12,7 +12,7 @@ from tqdm import tqdm, trange
 from inference import InferenceBase
 from src.const import DATA_PATH, FIGURE_PATH
 from src.utils import DataCompose, DataGenerator, read_cwa_ncfile
-from visual import *
+from visual import VizWind
 
 
 @hydra.main(version_base=None, config_path="config", config_name="predict")
@@ -64,7 +64,7 @@ def main(cfg: DictConfig) -> None:
             curr_time = eval_case + infer_machine.output_itv * i
             t_list.append(curr_time.strftime("%Y-%m-%d %HZ"))
             i_list.append(
-                f"Init: {eval_case.strftime('%Y-%m-%d %HZ')} Fcst: +{i*itv:02d}H"
+                f"Init: {eval_case.strftime('%Y-%m-%d %HZ')} Fcst: +{i * itv:02d}H"
             )
 
         # ground truth
@@ -111,7 +111,7 @@ def main(cfg: DictConfig) -> None:
             save_figure(fig, u_compose, save_name, eval_case, curr_time, "gt", "1x1")
 
             # prediction
-            title = f"Init: {eval_case.strftime('%Y-%m-%d %HZ')} Fcst: +{i*itv:02d}H"
+            title = f"Init: {eval_case.strftime('%Y-%m-%d %HZ')} Fcst: +{i * itv:02d}H"
             fig, _ = painter_pd.plot_1x1(lon, lat, pd_u[i], pd_v[i], title)
             dtype = "pd_bdy" if cfg.inference.bdy_swap_method else "pd"
             save_figure(fig, u_compose, save_name, eval_case, curr_time, dtype, "1x1")

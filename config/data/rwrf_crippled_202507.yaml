@@ -1,0 +1,35 @@
+start_time: "2017-06-01 00:00"
+end_time: "2022-10-31 00:00"
+format: "%Y-%m-%d %H:%M"
+time_interval: 
+  hours: 1
+data_shape: [450, 450]
+image_shape: [224, 224]
+add_time_features: True
+train_data:
+  Z:
+    - Hpa200
+    - Hpa500
+    - Hpa700
+    - Hpa850
+    - Hpa925
+  T:
+    - Hpa200
+    - Hpa500
+    - Hpa700
+    - Hpa850
+    - Hpa925
+  U:
+    - Hpa200
+    - Hpa500
+    - Hpa700
+    - Hpa850
+    - Hpa925
+  V:
+    - Hpa200
+    - Hpa500
+    - Hpa700
+    - Hpa850
+    - Hpa925
+  Radar:
+    - NoRule

@@ -1,0 +1,20 @@
+hydra:
+  run:  
+    dir: outputs/${now:%Y-%m-%d}/${now:%H:%M:%S}
+  job:
+    chdir: False
+  output_subdir: .hydra
+  job_logging:
+    root:
+      level: DEBUG
+    handlers:
+      console:
+        level: INFO
+      file:
+        level: DEBUG
+
+defaults:
+  - data: rwrf_crippled_202507
+  - lightning: pangu_rwrf_crippled_202507
+  - model: pangu_rwrf_202409
+  - _self_

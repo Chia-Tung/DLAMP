@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import hydra
-from lightning.pytorch import seed_everything
 from omegaconf import DictConfig, OmegaConf
 
 from src.managers import DataManager
@@ -12,7 +11,7 @@ from src.utils import DataCompose
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="config", config_name="train_pangu")
+@hydra.main(version_base=None, config_path="../config", config_name="train_pangu_21")
 def main(cfg: DictConfig) -> None:
     hydra_oup_dir = Path(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir)
     log.info(f"Working directory: {Path.cwd()}")
@@ -20,6 +19,7 @@ def main(cfg: DictConfig) -> None:
 
     # lightning ddp strategy doesn't need manual seed
     # https://github.com/Lightning-AI/pytorch-lightning/issues/12986
+    # from lightning.pytorch import seed_everything
     # seed_everything(1000)
 
     # prevent access to non-existing keys
